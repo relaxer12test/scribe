@@ -1,0 +1,7 @@
+{
+	email {$LETSENCRYPT_EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy app:4000
+}

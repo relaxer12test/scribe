@@ -27,9 +27,9 @@ services:
       timeout: 5s
       retries: 10
 
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: scribe-nginx
+  caddy:
+    image: caddy:2-alpine
+    container_name: scribe-caddy
     restart: always
     depends_on:
       - app
@@ -39,23 +39,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infra/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./infra/letsencrypt:/etc/letsencrypt
-      - ./infra/certbot-www:/var/www/certbot
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: scribe-certbot
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - ./infra/letsencrypt:/etc/letsencrypt
-      - ./infra/certbot-www:/var/www/certbot
-    entrypoint: ["sh", "-c"]
-    command: >
-      "trap exit TERM;
-       while :; do
-         certbot renew --webroot -w /var/www/certbot --quiet;
-         sleep 12h;
-       done"
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/data:/data
+      - ./infra/caddy/config:/config
