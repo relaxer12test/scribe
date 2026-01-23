@@ -160,8 +160,7 @@ defmodule Ueberauth.Strategy.Salesforce do
   end
 
   defp pkce_challenge(verifier) do
-    verifier
-    |> :crypto.hash(:sha256)
+    :crypto.hash(:sha256, verifier)
     |> Base.url_encode64(padding: false)
   end
 
