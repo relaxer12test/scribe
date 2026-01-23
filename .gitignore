@@ -41,3 +41,4 @@ npm-debug.log
 # HubSpot config file
 hubspot.config.yml
 **.DS_Store**
+.env.prod
