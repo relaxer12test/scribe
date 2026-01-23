@@ -129,6 +129,10 @@ Follow these steps to get SocialScribe running on your local machine.
         * `HUBSPOT_CLIENT_ID`: Your HubSpot App Client ID.
         * `HUBSPOT_CLIENT_SECRET`: Your HubSpot App Client Secret.
         * `HUBSPOT_REDIRECT_URI`: `"http://localhost:4000/auth/hubspot/callback"`
+        * `SALESFORCE_CLIENT_ID`: Your Salesforce Connected App Client ID.
+        * `SALESFORCE_CLIENT_SECRET`: Your Salesforce Connected App Client Secret.
+        * `SALESFORCE_REDIRECT_URI`: `"http://localhost:4000/auth/salesforce/callback"`
+        * `SALESFORCE_SITE`: Optional. Use `"https://test.salesforce.com"` for sandbox logins.
 
 4.  **Start the Phoenix Server:**
     ```bash
