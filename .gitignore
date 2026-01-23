@@ -1,9 +1,9 @@
 .env
 .envrc
- 
+
 # The directory Mix will write compiled artifacts to.
 /_build/
- 
+
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
@@ -40,3 +40,4 @@ npm-debug.log
 
 # HubSpot config file
 hubspot.config.yml
+**.DS_Store**
