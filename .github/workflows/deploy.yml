@@ -21,6 +21,4 @@ jobs:
             set -euo pipefail
             cd scribe
             git pull --ff-only
-            docker compose up -d postgres
-            docker compose run --rm -T --no-deps --build app /app/bin/social_scribe eval "SocialScribe.Release.migrate"
             docker compose up -d --force-recreate --build
