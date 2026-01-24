@@ -32,7 +32,7 @@ defmodule SocialScribe.Workers.BotStatusPoller do
 
         cond do
           new_status == "done" && is_nil(meeting) ->
-            process_completed_bot(updated_bot_record, bot_api_info)
+            process_completed_bot(updated_bot_record, bot_api_info, allow_empty_transcript: false)
 
           is_nil(meeting) && recordings_present?(bot_api_info) ->
             case fetch_transcript_data(updated_bot_record.recall_bot_id) do

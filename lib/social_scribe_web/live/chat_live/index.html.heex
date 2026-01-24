@@ -1,0 +1,280 @@
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+  <!-- Header with expand/collapse -->
+  <div class="bg-white rounded-t-xl border border-b-0 border-slate-200 px-5 py-4 flex items-center justify-between shadow-sm">
+    <h1 class="text-xl font-semibold text-slate-900">Ask Anything</h1>
+    <button
+      phx-click="toggle_expand"
+      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+    >
+      <.icon name={if @expanded, do: "hero-chevron-up", else: "hero-chevron-down"} class="h-5 w-5" />
+    </button>
+  </div>
+
+  <div :if={@expanded} class="bg-white border border-slate-200 rounded-b-xl shadow-sm">
+    <!-- Tabs -->
+    <div class="border-b border-slate-200 px-5 flex items-center justify-between">
+      <div class="flex -mb-px">
+        <button
+          phx-click="switch_tab"
+          phx-value-tab="chat"
+          class={[
+            "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+            @active_tab == :chat && "border-indigo-600 text-indigo-600",
+            @active_tab != :chat && "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          ]}
+        >
+          Chat
+        </button>
+        <button
+          phx-click="switch_tab"
+          phx-value-tab="history"
+          class={[
+            "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+            @active_tab == :history && "border-indigo-600 text-indigo-600",
+            @active_tab != :history && "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          ]}
+        >
+          History
+        </button>
+      </div>
+      <button
+        phx-click="new_chat"
+        class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        title="New conversation"
+      >
+        <.icon name="hero-plus" class="h-5 w-5" />
+      </button>
+    </div>
+
+    <!-- Content Area -->
+    <div class="h-[28rem] overflow-y-auto">
+      <%= if @active_tab == :chat do %>
+        <!-- Chat Messages -->
+        <div class="p-5 space-y-4">
+          <!-- Welcome message when no thread or no messages -->
+          <%= if is_nil(@current_thread) || map_size(@messages) == 0 do %>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                <.icon name="hero-sparkles" class="h-4 w-4 text-indigo-600" />
+              </div>
+              <div class="bg-slate-100 rounded-xl px-4 py-3 max-w-md">
+                <p class="text-sm text-slate-700">
+                  I can answer questions about your meetings and CRM contacts – just ask!
+                </p>
+              </div>
+            </div>
+          <% else %>
+            <!-- Messages grouped by date -->
+            <%= for {date, msgs} <- @messages do %>
+              <!-- Date divider -->
+              <div class="flex items-center gap-4 py-2">
+                <div class="flex-1 border-t border-slate-200"></div>
+                <span class="text-xs text-slate-500 font-medium">{format_date(date)}</span>
+                <div class="flex-1 border-t border-slate-200"></div>
+              </div>
+
+              <!-- Messages for this date -->
+              <%= for msg <- msgs do %>
+                <div class={["flex gap-3", msg.role == "user" && "flex-row-reverse"]}>
+                  <!-- Avatar -->
+                  <div class="flex-shrink-0">
+                    <%= if msg.role == "user" do %>
+                      <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                        {String.first(@current_user.email) |> String.upcase()}
+                      </div>
+                    <% else %>
+                      <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <.icon name="hero-sparkles" class="h-4 w-4 text-indigo-600" />
+                      </div>
+                    <% end %>
+                  </div>
+
+                  <!-- Message bubble -->
+                  <div class={[
+                    "rounded-xl px-4 py-3 max-w-md",
+                    msg.role == "user" && "bg-indigo-600 text-white",
+                    msg.role == "assistant" && "bg-slate-100 text-slate-700"
+                  ]}>
+                    <p class="text-sm whitespace-pre-wrap">{render_content_with_mentions(msg.content, msg.mentions)}</p>
+
+                    <!-- Sources for assistant messages -->
+                    <%= if msg.role == "assistant" && has_sources?(msg) do %>
+                      <div class="mt-3 pt-3 border-t border-slate-200/50">
+                        <p class="text-xs font-medium text-slate-500 mb-2">Sources</p>
+                        <div class="space-y-1">
+                          <%= for source <- msg.sources["meetings"] || [] do %>
+                            <.link
+                              href={~p"/dashboard/meetings/#{source["meeting_id"]}"}
+                              class="flex items-center gap-2 text-xs text-indigo-600 hover:underline"
+                            >
+                              <.icon name="hero-document-text" class="h-3 w-3" />
+                              <span>{source["title"]}</span>
+                              <span :if={source["timestamp"]} class="text-slate-400">({source["timestamp"]})</span>
+                            </.link>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <!-- Loading indicator -->
+          <div :if={@sending} class="flex gap-3">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+              <.icon name="hero-arrow-path" class="h-4 w-4 text-indigo-600 animate-spin" />
+            </div>
+            <div class="bg-slate-100 rounded-xl px-4 py-3">
+              <p class="text-sm text-slate-500">Thinking...</p>
+            </div>
+          </div>
+        </div>
+      <% else %>
+        <!-- History tab - Thread list -->
+        <div class="divide-y divide-slate-100">
+          <%= if Enum.empty?(@threads) do %>
+            <div class="p-8 text-center text-slate-500">
+              <.icon name="hero-chat-bubble-left-right" class="h-12 w-12 mx-auto mb-3 text-slate-300" />
+              <p class="text-sm font-medium">No conversations yet</p>
+              <p class="text-xs mt-1">Start a new chat to begin</p>
+            </div>
+          <% else %>
+            <%= for thread <- @threads do %>
+              <button
+                type="button"
+                phx-click="select_thread"
+                phx-value-id={thread.id}
+                class={[
+                  "w-full px-5 py-4 text-left hover:bg-slate-50 transition-colors",
+                  @current_thread && @current_thread.id == thread.id && "bg-indigo-50"
+                ]}
+              >
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-slate-900 truncate">
+                    {thread.title || "New conversation"}
+                  </span>
+                  <span class="text-xs text-slate-500 ml-2 flex-shrink-0">
+                    {format_thread_time(thread)}
+                  </span>
+                </div>
+                <p :if={first_message(thread)} class="text-xs text-slate-500 truncate mt-1">
+                  {first_message(thread).content}
+                </p>
+              </button>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Input Area -->
+    <div class="border-t border-slate-200 p-4">
+      <div class="relative">
+        <!-- Mention autocomplete dropdown -->
+        <div
+          :if={@mention_query && length(@mention_search_results) > 0}
+          class="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-lg shadow-lg border border-slate-200 max-h-48 overflow-y-auto z-10"
+        >
+          <%= for contact <- @mention_search_results do %>
+            <button
+              type="button"
+              phx-click="select_mention"
+              phx-value-contact={Jason.encode!(%{
+                id: contact.id || contact[:id],
+                display_name: contact.display_name || contact[:display_name],
+                crm_provider: contact.crm_provider || contact[:crm_provider],
+                email: contact.email || contact[:email],
+                firstname: contact.firstname || contact[:firstname],
+                lastname: contact.lastname || contact[:lastname]
+              })}
+              class="w-full px-3 py-2.5 text-left hover:bg-slate-50 flex items-center gap-3 transition-colors"
+            >
+              <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600">
+                {String.first(contact.firstname || contact[:firstname] || "")}{String.first(contact.lastname || contact[:lastname] || "")}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-900 truncate">
+                  {contact.display_name || contact[:display_name]}
+                </div>
+                <div class="text-xs text-slate-500 flex items-center gap-1 truncate">
+                  <span class={[
+                    "inline-block w-2 h-2 rounded-full",
+                    (contact.crm_provider || contact[:crm_provider]) == "hubspot" && "bg-orange-500",
+                    (contact.crm_provider || contact[:crm_provider]) == "salesforce" && "bg-blue-500"
+                  ]}></span>
+                  <span>{contact.email || contact[:email]}</span>
+                </div>
+              </div>
+            </button>
+          <% end %>
+        </div>
+
+        <!-- Input container with buttons inside -->
+        <div class="relative rounded-2xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+          <!-- Top toolbar - Add context -->
+          <div class="px-3 pt-3">
+            <button
+              type="button"
+              phx-click="add_context"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+              title="Add context by mentioning a contact with @"
+            >
+              <.icon name="hero-at-symbol" class="h-4 w-4" />
+              <span>Add context</span>
+            </button>
+          </div>
+
+          <!-- Text input -->
+          <textarea
+            id="chat-input"
+            name="message"
+            rows="3"
+            placeholder="Ask anything about your meetings"
+            value={@input_value}
+            phx-keyup="input_change"
+            phx-key="*"
+            phx-hook="ChatInput"
+            disabled={@sending}
+            class="w-full resize-none border-0 px-4 py-3 text-sm focus:outline-none focus:ring-0 disabled:bg-slate-50 disabled:text-slate-500 placeholder:text-slate-400"
+          ></textarea>
+
+          <!-- Bottom toolbar - Sources and Send -->
+          <div class="flex items-center justify-between px-3 pb-3">
+            <!-- Sources -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-500">Sources</span>
+              <%= if @hubspot_credential || @salesforce_credential do %>
+                <div class="flex items-center gap-1">
+                  <div :if={@hubspot_credential} class="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center" title="HubSpot">
+                    <span class="text-white text-[10px] font-bold">H</span>
+                  </div>
+                  <div :if={@salesforce_credential} class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center" title="Salesforce">
+                    <span class="text-white text-[10px] font-bold">S</span>
+                  </div>
+                </div>
+              <% else %>
+                <.link href={~p"/dashboard/settings"} class="text-xs text-indigo-600 hover:underline">Connect</.link>
+              <% end %>
+            </div>
+
+            <!-- Send button -->
+            <button
+              type="button"
+              phx-click="send_message"
+              disabled={@sending || String.trim(@input_value) == ""}
+              class={[
+                "p-2 rounded-full transition-all",
+                String.trim(@input_value) != "" && !@sending && "bg-slate-900 text-white hover:bg-slate-800",
+                (String.trim(@input_value) == "" || @sending) && "bg-slate-200 text-slate-400 cursor-not-allowed"
+              ]}
+            >
+              <.icon name="hero-arrow-up" class="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

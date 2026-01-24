@@ -27,4 +27,14 @@ Hooks.BrowserTimezone = {
     }
 }
 
+Hooks.ChatInput = {
+    mounted() {
+        this.handleEvent("focus_chat_input", () => {
+            this.el.focus()
+            // Move cursor to end
+            this.el.setSelectionRange(this.el.value.length, this.el.value.length)
+        })
+    }
+}
+
 export default Hooks

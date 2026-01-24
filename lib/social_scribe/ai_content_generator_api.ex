@@ -7,6 +7,12 @@ defmodule SocialScribe.AIContentGeneratorApi do
   @callback generate_automation(map(), map()) :: {:ok, String.t()} | {:error, any()}
   @callback generate_hubspot_suggestions(map()) :: {:ok, list(map())} | {:error, any()}
   @callback generate_salesforce_suggestions(map()) :: {:ok, list(map())} | {:error, any()}
+  @callback generate_chat_response(
+              user_query :: String.t(),
+              mentioned_contacts :: list(map()),
+              meeting_context :: list(map()),
+              conversation_history :: list(map())
+            ) :: {:ok, map()} | {:error, any()}
 
   def generate_follow_up_email(meeting) do
     impl().generate_follow_up_email(meeting)
@@ -22,6 +28,10 @@ defmodule SocialScribe.AIContentGeneratorApi do
 
   def generate_salesforce_suggestions(meeting) do
     impl().generate_salesforce_suggestions(meeting)
+  end
+
+  def generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history) do
+    impl().generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history)
   end
 
   defp impl do

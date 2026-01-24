@@ -93,6 +93,9 @@ defmodule SocialScribeWeb.Router do
 
       live "/automations/:id", AutomationLive.Show, :show
       live "/automations/:id/show/edit", AutomationLive.Show, :edit
+
+      live "/chat", ChatLive.Index, :index
+      live "/chat/:thread_id", ChatLive.Index, :show
     end
   end
 

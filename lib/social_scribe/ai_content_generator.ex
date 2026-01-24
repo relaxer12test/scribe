@@ -189,6 +189,165 @@ defmodule SocialScribe.AIContentGenerator do
     end
   end
 
+  @impl SocialScribe.AIContentGeneratorApi
+  def generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history) do
+    prompt = build_chat_prompt(user_query, mentioned_contacts, meeting_context, conversation_history)
+
+    case call_gemini(prompt) do
+      {:ok, response} ->
+        parse_chat_response(response)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_chat_prompt(user_query, contacts, meetings, history) do
+    """
+    You are an AI assistant that answers questions about CRM contacts and meeting data.
+    You help users understand their meetings and contact information from their CRM (HubSpot or Salesforce).
+
+    ## Contact Information
+    #{format_contacts_for_prompt(contacts)}
+
+    ## Meeting Context
+    #{format_meetings_for_prompt(meetings)}
+
+    ## Conversation History
+    #{format_history_for_prompt(history)}
+
+    ## Current Question
+    #{user_query}
+
+    Instructions:
+    - Answer the user's question based on the contact information and meeting context provided
+    - Be specific and reference the actual data when possible
+    - If you reference information from a meeting, include the meeting title and timestamp in your response
+    - If you don't have enough information to answer, say so clearly
+
+    Respond in JSON format:
+    {
+      "answer": "Your detailed response here",
+      "sources": [
+        {"meeting_id": 123, "title": "Meeting Title", "timestamp": "01:23", "quote": "relevant quote from transcript"}
+      ]
+    }
+
+    The "sources" array should only include meetings that you actually referenced in your answer.
+    If no meetings were referenced, use an empty array: []
+
+    ONLY return valid JSON, no other text.
+    """
+  end
+
+  defp format_contacts_for_prompt([]), do: "No contacts mentioned."
+
+  defp format_contacts_for_prompt(contacts) do
+    contacts
+    |> Enum.map(fn contact ->
+      """
+      - #{contact[:firstname] || contact["firstname"]} #{contact[:lastname] || contact["lastname"]} (#{contact[:crm_provider] || contact["crm_provider"]})
+        Email: #{contact[:email] || contact["email"] || "N/A"}
+        Phone: #{contact[:phone] || contact["phone"] || "N/A"}
+        Company: #{contact[:company] || contact["company"] || "N/A"}
+        Title: #{contact[:jobtitle] || contact[:title] || contact["jobtitle"] || contact["title"] || "N/A"}
+      """
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_meetings_for_prompt([]), do: "No meeting context available."
+
+  defp format_meetings_for_prompt(meetings) do
+    meetings
+    |> Enum.take(5)
+    |> Enum.map(fn meeting ->
+      transcript =
+        case meeting.meeting_transcript do
+          nil -> "No transcript available"
+          t -> format_transcript_excerpt(t.content)
+        end
+
+      """
+      Meeting ID: #{meeting.id}
+      Title: #{meeting.title}
+      Date: #{meeting.recorded_at}
+      Participants: #{format_participants(meeting.meeting_participants)}
+      Transcript excerpt:
+      #{transcript}
+      ---
+      """
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_transcript_excerpt(nil), do: "No transcript"
+
+  defp format_transcript_excerpt(content) when is_list(content) do
+    content
+    |> Enum.take(20)
+    |> Enum.map(fn segment ->
+      speaker = Map.get(segment, "speaker", "Unknown")
+      words = Map.get(segment, "words", [])
+      text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
+      "[#{speaker}]: #{text}"
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_transcript_excerpt(content) when is_binary(content) do
+    content |> String.slice(0, 2000)
+  end
+
+  defp format_transcript_excerpt(_), do: "No transcript"
+
+  defp format_participants(nil), do: "Unknown"
+  defp format_participants([]), do: "Unknown"
+
+  defp format_participants(participants) do
+    participants
+    |> Enum.map(fn p -> p.name end)
+    |> Enum.join(", ")
+  end
+
+  defp format_history_for_prompt([]), do: "This is the start of the conversation."
+
+  defp format_history_for_prompt(history) do
+    history
+    |> Enum.take(-10)
+    |> Enum.map(fn msg ->
+      role = msg[:role] || msg["role"]
+      content = msg[:content] || msg["content"]
+      "#{String.capitalize(role)}: #{content}"
+    end)
+    |> Enum.join("\n\n")
+  end
+
+  defp parse_chat_response(response) do
+    cleaned =
+      response
+      |> String.trim()
+      |> String.replace(~r/^```json\n?/, "")
+      |> String.replace(~r/\n?```$/, "")
+      |> String.trim()
+
+    case Jason.decode(cleaned) do
+      {:ok, %{"answer" => answer, "sources" => sources}} when is_list(sources) ->
+        {:ok, %{answer: answer, sources: sources}}
+
+      {:ok, %{"answer" => answer}} ->
+        {:ok, %{answer: answer, sources: []}}
+
+      {:ok, _} ->
+        # If structure is unexpected, use the raw cleaned response
+        {:ok, %{answer: cleaned, sources: []}}
+
+      {:error, _} ->
+        # If JSON parsing fails, return the raw response
+        {:ok, %{answer: cleaned, sources: []}}
+    end
+  end
+
   defp parse_salesforce_suggestions(response) do
     cleaned =
       response

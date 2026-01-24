@@ -212,7 +212,9 @@ defmodule SocialScribe.Bots do
 
           cond do
             is_nil(meeting) && new_status == "done" ->
-              case create_meeting_from_bot(updated_bot_record, bot_api_info) do
+              case create_meeting_from_bot(updated_bot_record, bot_api_info,
+                     allow_empty_transcript: false
+                   ) do
                 {:ok, :pending} -> {:ok, :pending}
                 {:ok, _meeting} -> {:ok, :meeting_created}
                 {:error, reason} -> {:error, reason}
