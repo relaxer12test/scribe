@@ -8,6 +8,7 @@ defmodule SocialScribe.Workers.AIContentGenerationWorkerTest do
   import SocialScribe.BotsFixtures
   import SocialScribe.CalendarFixtures
   import SocialScribe.AccountsFixtures
+  import ExUnit.CaptureLog
 
   alias SocialScribe.Workers.AIContentGenerationWorker
   alias SocialScribe.AIContentGeneratorMock, as: AIGeneratorMock
@@ -92,8 +93,10 @@ defmodule SocialScribe.Workers.AIContentGenerationWorkerTest do
     test "returns {:error, :meeting_not_found} if meeting_id is invalid" do
       job_args = %{"meeting_id" => System.unique_integer([:positive])}
 
-      assert AIContentGenerationWorker.perform(%Oban.Job{args: job_args}) ==
-               {:error, :meeting_not_found}
+      capture_log(fn ->
+        assert AIContentGenerationWorker.perform(%Oban.Job{args: job_args}) ==
+                 {:error, :meeting_not_found}
+      end)
     end
 
     test "returns {:error, :no_transcript} if meeting has no transcript content" do
