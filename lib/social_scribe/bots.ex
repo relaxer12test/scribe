@@ -390,7 +390,7 @@ defmodule SocialScribe.Bots do
     end
   end
 
-  defp create_meeting_from_bot(bot_record, bot_api_info, opts \\ []) do
+  defp create_meeting_from_bot(bot_record, bot_api_info, opts) do
     allow_empty_transcript = Keyword.get(opts, :allow_empty_transcript, true)
 
     transcript_data =

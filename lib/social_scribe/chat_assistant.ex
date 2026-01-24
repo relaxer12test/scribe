@@ -9,6 +9,8 @@ defmodule SocialScribe.ChatAssistant do
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
 
+  require Logger
+
   @doc """
   Process a user message and generate AI response.
 
@@ -43,12 +45,17 @@ defmodule SocialScribe.ChatAssistant do
   each tagged with their crm_provider.
   """
   def search_contacts(query, credentials) do
+    Logger.info("[ChatAssistant] Searching contacts for query: #{inspect(query)}")
     results = []
 
     results =
       if credentials.hubspot do
+        Logger.info("[ChatAssistant] Querying HubSpot for: #{inspect(query)}")
+
         case HubspotApi.search_contacts(credentials.hubspot, query) do
           {:ok, contacts} ->
+            Logger.info("[ChatAssistant] HubSpot returned #{length(contacts)} contacts: #{inspect(Enum.map(contacts, & &1.email))}")
+
             tagged =
               Enum.map(contacts, fn c ->
                 c
@@ -58,17 +65,23 @@ defmodule SocialScribe.ChatAssistant do
 
             results ++ tagged
 
-          {:error, _} ->
+          {:error, reason} ->
+            Logger.warning("[ChatAssistant] HubSpot search failed: #{inspect(reason)}")
             results
         end
       else
+        Logger.debug("[ChatAssistant] HubSpot not connected, skipping")
         results
       end
 
     results =
       if credentials.salesforce do
+        Logger.info("[ChatAssistant] Querying Salesforce for: #{inspect(query)}")
+
         case SalesforceApi.search_contacts(credentials.salesforce, query) do
           {:ok, contacts} ->
+            Logger.info("[ChatAssistant] Salesforce returned #{length(contacts)} contacts: #{inspect(Enum.map(contacts, & &1.email))}")
+
             tagged =
               Enum.map(contacts, fn c ->
                 c
@@ -78,13 +91,16 @@ defmodule SocialScribe.ChatAssistant do
 
             results ++ tagged
 
-          {:error, _} ->
+          {:error, reason} ->
+            Logger.warning("[ChatAssistant] Salesforce search failed: #{inspect(reason)}")
             results
         end
       else
+        Logger.debug("[ChatAssistant] Salesforce not connected, skipping")
         results
       end
 
+    Logger.info("[ChatAssistant] Total results: #{length(results)}")
     {:ok, results}
   end
 

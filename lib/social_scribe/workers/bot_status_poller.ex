@@ -69,7 +69,7 @@ defmodule SocialScribe.Workers.BotStatusPoller do
     end
   end
 
-  defp process_completed_bot(bot_record, bot_api_info, opts \\ []) do
+  defp process_completed_bot(bot_record, bot_api_info, opts) do
     Logger.info("Bot #{bot_record.recall_bot_id} is done. Fetching transcript and participants...")
 
     allow_empty_transcript = Keyword.get(opts, :allow_empty_transcript, true)
