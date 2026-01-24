@@ -98,6 +98,9 @@ defmodule SocialScribeWeb.Router do
     pipe_through [:browser]
 
     delete "/users/log_out", UserSessionController, :delete
+    get "/privacy", LegalController, :privacy
+    get "/delete", LegalController, :delete
+    get "/terms", LegalController, :terms
 
     live_session :current_user,
       on_mount: [{SocialScribeWeb.UserAuth, :mount_current_user}] do
