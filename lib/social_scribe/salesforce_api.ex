@@ -73,6 +73,35 @@ defmodule SocialScribe.SalesforceApi do
   end
 
   @doc """
+  Lists recent contacts.
+  Returns up to `limit` contacts with basic properties.
+  Automatically refreshes token on 401/expired errors and retries once.
+  """
+  def list_contacts(%UserCredential{} = credential, limit \\ 50) when is_integer(limit) do
+    limit = limit |> max(1) |> min(200)
+
+    with_token_refresh(credential, fn cred ->
+      with_instance_url(cred, fn instance_url ->
+        fields = Enum.join(@contact_fields, ", ")
+        soql = "SELECT #{fields} FROM Contact ORDER BY LastModifiedDate DESC LIMIT #{limit}"
+        url = "/services/data/#{@api_version}/query?q=#{URI.encode(soql)}"
+
+        case Tesla.get(client(cred.token, instance_url), url) do
+          {:ok, %Tesla.Env{status: 200, body: %{"records" => records}}} ->
+            contacts = Enum.map(records, &format_contact/1)
+            {:ok, contacts}
+
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
+
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
+      end)
+    end)
+  end
+
+  @doc """
   Gets a single contact by ID with selected properties.
   Automatically refreshes token on 401/expired errors and retries once.
   """
@@ -150,6 +179,33 @@ defmodule SocialScribe.SalesforceApi do
     end
   end
 
+  @doc """
+  Fetches Salesforce connection info for the current credential.
+  Returns instance_url, org_id, and user_id when available.
+  """
+  def get_connection_info(%UserCredential{} = credential) do
+    with_token_refresh(credential, fn cred ->
+      case fetch_userinfo(cred) do
+        {:ok, body} ->
+          case instance_url_from_userinfo(body) do
+            {:ok, instance_url} ->
+              {:ok,
+               %{
+                 instance_url: instance_url,
+                 org_id: body["organization_id"],
+                 user_id: body["user_id"]
+               }}
+
+            :error ->
+              {:error, {:missing_instance_url, body}}
+          end
+
+        {:error, _} = error ->
+          error
+      end
+    end)
+  end
+
   defp build_search_query(query) do
     escaped = escape_soql_like(query)
     fields = Enum.join(@contact_fields, ", ")
@@ -188,16 +244,26 @@ defmodule SocialScribe.SalesforceApi do
   end
 
   defp fetch_instance_url(%UserCredential{} = credential) do
+    case fetch_userinfo(credential) do
+      {:ok, body} ->
+        case instance_url_from_userinfo(body) do
+          {:ok, instance_url} -> {:ok, instance_url}
+          :error -> {:error, {:missing_instance_url, body}}
+        end
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp fetch_userinfo(%UserCredential{} = credential) do
     config = Application.get_env(:ueberauth, Ueberauth.Strategy.Salesforce.OAuth, [])
     site = Keyword.get(config, :site, "https://login.salesforce.com")
     url = site <> "/services/oauth2/userinfo"
 
     case Tesla.get(userinfo_client(credential.token), url) do
-      {:ok, %Tesla.Env{status: 200, body: %{"instance_url" => instance_url}}} ->
-        {:ok, instance_url}
-
       {:ok, %Tesla.Env{status: 200, body: body}} ->
-        {:error, {:missing_instance_url, body}}
+        {:ok, body}
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
         {:error, {:api_error, status, body}}
@@ -212,6 +278,62 @@ defmodule SocialScribe.SalesforceApi do
       Tesla.Middleware.JSON,
       {Tesla.Middleware.Headers, [{"authorization", "Bearer #{access_token}"}]}
     ])
+  end
+
+  defp instance_url_from_userinfo(%{"instance_url" => instance_url})
+       when is_binary(instance_url) do
+    {:ok, instance_url}
+  end
+
+  defp instance_url_from_userinfo(%{"urls" => urls} = body) when is_map(urls) do
+    candidates = [
+      urls["custom_domain"],
+      urls["rest"],
+      urls["sobjects"],
+      urls["query"],
+      urls["search"],
+      urls["tooling_rest"],
+      urls["tooling_soap"],
+      body["profile"]
+    ]
+
+    case extract_base_url(candidates) do
+      nil -> :error
+      instance_url -> {:ok, instance_url}
+    end
+  end
+
+  defp instance_url_from_userinfo(%{"profile" => profile}) when is_binary(profile) do
+    case base_from_url(profile) do
+      nil -> :error
+      instance_url -> {:ok, instance_url}
+    end
+  end
+
+  defp instance_url_from_userinfo(_), do: :error
+
+  defp extract_base_url(candidates) when is_list(candidates) do
+    Enum.find_value(candidates, fn url ->
+      case base_from_url(url) do
+        nil -> false
+        base -> base
+      end
+    end)
+  end
+
+  defp base_from_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, port: port}
+      when is_binary(scheme) and is_binary(host) ->
+        if port && port not in [80, 443] do
+          "#{scheme}://#{host}:#{port}"
+        else
+          "#{scheme}://#{host}"
+        end
+
+      _ ->
+        nil
+    end
   end
 
   # Format a Salesforce contact response into a cleaner structure

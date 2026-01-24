@@ -71,6 +71,33 @@ defmodule SocialScribe.HubspotApi do
   end
 
   @doc """
+  Lists recent contacts (first page).
+  Returns up to `limit` contacts with basic properties.
+  Automatically refreshes token on 401/expired errors and retries once.
+  """
+  def list_contacts(%UserCredential{} = credential, limit \\ 50) when is_integer(limit) do
+    limit = limit |> max(1) |> min(100)
+
+    with_token_refresh(credential, fn cred ->
+      properties_param = Enum.join(@contact_properties, ",")
+      params = URI.encode_query(%{"limit" => limit, "properties" => properties_param})
+      url = "/crm/v3/objects/contacts?" <> params
+
+      case Tesla.get(client(cred.token), url) do
+        {:ok, %Tesla.Env{status: 200, body: %{"results" => results}}} ->
+          contacts = Enum.map(results, &format_contact/1)
+          {:ok, contacts}
+
+        {:ok, %Tesla.Env{status: status, body: body}} ->
+          {:error, {:api_error, status, body}}
+
+        {:error, reason} ->
+          {:error, {:http_error, reason}}
+      end
+    end)
+  end
+
+  @doc """
   Gets a single contact by ID with all properties.
   Automatically refreshes token on 401/expired errors and retries once.
   """

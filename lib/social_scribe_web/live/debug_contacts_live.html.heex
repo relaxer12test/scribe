@@ -1,0 +1,151 @@
+<div class="container mx-auto px-4 py-8 md:py-12">
+  <h1 class="text-3xl md:text-4xl font-bold text-slate-800">
+    {@page_title}
+  </h1>
+  <p class="mt-2 text-sm text-slate-500">
+    Hidden debug page for CRM contact queries. Not linked anywhere.
+  </p>
+
+  <div class="mt-6 grid gap-6 lg:grid-cols-2">
+    <div class="bg-white shadow-lg rounded-lg p-6">
+      <h2 class="text-lg font-semibold text-slate-800">Search Contacts</h2>
+      <form phx-submit="search" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+          <label for="debug-query" class="block text-sm font-medium text-slate-700">Query</label>
+          <input
+            id="debug-query"
+            name="query"
+            type="text"
+            value={@query}
+            placeholder="Name, email, phone..."
+            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+        >
+          Search
+        </button>
+      </form>
+      <p class="mt-2 text-xs text-slate-500">
+        Uses the same CRM search endpoints as @-mentions.
+      </p>
+    </div>
+
+    <div class="bg-white shadow-lg rounded-lg p-6">
+      <h2 class="text-lg font-semibold text-slate-800">List Contacts</h2>
+      <form phx-submit="list_all" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div>
+          <label for="debug-limit" class="block text-sm font-medium text-slate-700">Limit</label>
+          <input
+            id="debug-limit"
+            name="limit"
+            type="number"
+            min="1"
+            max="200"
+            value={@limit}
+            class="mt-1 w-28 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+        >
+          Fetch Latest
+        </button>
+      </form>
+      <p class="mt-2 text-xs text-slate-500">
+        HubSpot is capped at 100 contacts per request.
+      </p>
+    </div>
+  </div>
+
+  <div class="mt-6 grid gap-4 md:grid-cols-2">
+    <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div class="text-sm font-semibold text-slate-700">HubSpot</div>
+      <div class="text-xs text-slate-500">
+        Connected:
+        <%= if @hubspot_credential do %>
+          <span class="text-emerald-600">Yes</span>
+          <span class="text-slate-400">·</span>
+          <span>{@hubspot_credential.email}</span>
+        <% else %>
+          <span class="text-rose-600">No</span>
+        <% end %>
+      </div>
+      <div class="mt-2 text-xs text-slate-600">
+        Search results: {length(@search_results.hubspot)} | List results: {length(@list_results.hubspot)}
+      </div>
+      <%= if @errors.hubspot_search do %>
+        <div class="mt-2 text-xs text-rose-600">Search error: {@errors.hubspot_search}</div>
+      <% end %>
+      <%= if @errors.hubspot_list do %>
+        <div class="mt-1 text-xs text-rose-600">List error: {@errors.hubspot_list}</div>
+      <% end %>
+    </div>
+
+    <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div class="text-sm font-semibold text-slate-700">Salesforce</div>
+      <div class="text-xs text-slate-500">
+        Connected:
+        <%= if @salesforce_credential do %>
+          <span class="text-emerald-600">Yes</span>
+          <span class="text-slate-400">·</span>
+          <span>{@salesforce_credential.email}</span>
+        <% else %>
+          <span class="text-rose-600">No</span>
+        <% end %>
+      </div>
+      <%= if @salesforce_info do %>
+        <div class="mt-2 text-xs text-slate-500">
+          Instance:
+          <span class="font-mono text-slate-600">{@salesforce_info.instance_url}</span>
+        </div>
+        <div class="text-xs text-slate-500">
+          Org ID:
+          <span class="font-mono text-slate-600">{@salesforce_info.org_id || "unknown"}</span>
+        </div>
+        <div class="text-xs text-slate-500">
+          User ID:
+          <span class="font-mono text-slate-600">{@salesforce_info.user_id || "unknown"}</span>
+        </div>
+      <% end %>
+      <%= if @salesforce_info_error do %>
+        <div class="mt-2 text-xs text-rose-600">Info error: {@salesforce_info_error}</div>
+      <% end %>
+      <div class="mt-2 text-xs text-slate-600">
+        Search results: {length(@search_results.salesforce)} | List results: {length(@list_results.salesforce)}
+      </div>
+      <%= if @errors.salesforce_search do %>
+        <div class="mt-2 text-xs text-rose-600">Search error: {@errors.salesforce_search}</div>
+      <% end %>
+      <%= if @errors.salesforce_list do %>
+        <div class="mt-1 text-xs text-rose-600">List error: {@errors.salesforce_list}</div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mt-8 grid gap-6 lg:grid-cols-2">
+    <.contact_list
+      title="HubSpot Search Results"
+      contacts={@search_results.hubspot}
+      empty_message="No HubSpot search results yet."
+    />
+    <.contact_list
+      title="Salesforce Search Results"
+      contacts={@search_results.salesforce}
+      empty_message="No Salesforce search results yet."
+    />
+    <.contact_list
+      title="HubSpot List Results"
+      contacts={@list_results.hubspot}
+      empty_message="No HubSpot list results yet."
+    />
+    <.contact_list
+      title="Salesforce List Results"
+      contacts={@list_results.salesforce}
+      empty_message="No Salesforce list results yet."
+    />
+  </div>
+</div>
