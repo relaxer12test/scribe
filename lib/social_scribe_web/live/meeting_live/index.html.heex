@@ -3,7 +3,7 @@
     {@page_title}
   </h1>
 
-  <%= if Enum.empty?(@meetings) do %>
+  <%= if Enum.empty?(@meeting_items) do %>
     <div class="text-center p-8 bg-white  shadow-lg rounded-lg">
       <svg
         class="mx-auto h-12 w-12 text-slate-400"
@@ -20,58 +20,85 @@
         />
       </svg>
       <h3 class="mt-2 text-xl font-semibold text-slate-700 ">
-        No processed meetings yet
+        No meetings yet
       </h3>
       <p class="mt-1 text-sm text-slate-500 ">
-        Once your recorded meetings are processed, they will appear here.
+        Meetings scheduled for recording and completed meetings will appear here.
       </p>
     </div>
   <% end %>
 
-  <%= if not Enum.empty?(@meetings) do %>
+  <%= if not Enum.empty?(@meeting_items) do %>
     <div class="space-y-6">
-      <div :for={meeting <- @meetings} class="bg-white  shadow-xl rounded-lg overflow-hidden">
+      <div :for={bot <- @meeting_items} class="bg-white  shadow-xl rounded-lg overflow-hidden">
         <div class="p-5 md:p-6">
           <div class="flex flex-col sm:flex-row justify-between">
             <div class="mb-4 sm:mb-0">
-              <h3 class="text-xl font-semibold text-indigo-600 mb-1 flex items-center gap-2">
-                {meeting.title}
-                <.platform_logo recall_bot={meeting.recall_bot} class="size-6" />
-              </h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-xl font-semibold text-indigo-600 mb-1 flex items-center gap-2">
+                  {meeting_title(bot)}
+                  <.platform_logo recall_bot={bot} class="size-6" />
+                </h3>
+                <span class={"inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full #{status_badge_class(bot.status)}"}>
+                  {format_status(bot.status)}
+                </span>
+              </div>
               <p class="text-sm text-slate-500 ">
-                Recorded: {meeting.recorded_at}
-              </p>
-              <p class="text-xs text-slate-400 ">
-                Duration: {format_duration(meeting.duration_seconds)} | Attendees: {Enum.count(
-                  meeting.meeting_participants
-                )}
-              </p>
-              <p class="text-xs text-slate-500 mt-1 ">
-                <% 
-                  names =
-                    meeting.meeting_participants
-                    |> Enum.map(fn p ->
-                      name = p.name || ""
-                      if name == "", do: "Unknown", else: name
-                    end)
-
-                  shown = Enum.take(names, 3)
-                  remaining = max(length(names) - length(shown), 0)
-                %>
-                Attendees:
-                {Enum.join(shown, ", ")}
-                <%= if remaining > 0 do %>
-                  +{remaining} more
+                <%= if bot.meeting do %>
+                  Recorded: {bot.meeting.recorded_at}
+                <% else %>
+                  Scheduled: {bot.calendar_event && bot.calendar_event.start_time || "N/A"}
                 <% end %>
               </p>
+              <p class="text-xs text-slate-400 ">
+                <%= if bot.meeting do %>
+                  Duration: {format_duration(bot.meeting.duration_seconds)} | Attendees: {Enum.count(
+                    bot.meeting.meeting_participants
+                  )}
+                <% else %>
+                  Duration: N/A | Attendees: TBD
+                <% end %>
+              </p>
+              <%= if bot.meeting && Enum.any?(bot.meeting.meeting_participants) do %>
+                <p class="text-xs text-slate-500 mt-1 ">
+                  <% 
+                    names =
+                      bot.meeting.meeting_participants
+                      |> Enum.map(fn p ->
+                        name = p.name || ""
+                        if name == "", do: "Unknown", else: name
+                      end)
+
+                    shown = Enum.take(names, 3)
+                    remaining = max(length(names) - length(shown), 0)
+                  %>
+                  Attendees:
+                  {Enum.join(shown, ", ")}
+                  <%= if remaining > 0 do %>
+                    +{remaining} more
+                  <% end %>
+                </p>
+              <% end %>
             </div>
             <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-              <.link
-                href={~p"/dashboard/meetings/#{meeting.id}"}
-                class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
-              >
-                View Details
-              </.link>
+              <%= if bot.meeting do %>
+                <.link
+                  href={~p"/dashboard/meetings/#{bot.meeting.id}"}
+                  class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+                >
+                  View Details
+                </.link>
+              <% else %>
+                <button
+                  type="button"
+                  phx-click="refresh_bot"
+                  phx-value-id={bot.id}
+                  phx-disable-with="Refreshing..."
+                  class="inline-flex items-center justify-center px-4 py-2 border border-slate-200 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                >
+                  Refresh
+                </button>
+              <% end %>
             </div>
           </div>
         </div>

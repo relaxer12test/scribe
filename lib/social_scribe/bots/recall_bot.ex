@@ -9,6 +9,7 @@ defmodule SocialScribe.Bots.RecallBot do
 
     belongs_to :user, SocialScribe.Accounts.User
     belongs_to :calendar_event, SocialScribe.Calendar.CalendarEvent
+    has_one :meeting, SocialScribe.Meetings.Meeting
 
     timestamps(type: :utc_datetime)
   end

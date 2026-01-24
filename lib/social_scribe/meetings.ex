@@ -134,6 +134,22 @@ defmodule SocialScribe.Meetings do
   end
 
   @doc """
+  Lists meeting activity for a user, including recall bots that are still processing.
+  """
+  def list_user_meeting_items(user) do
+    from(rb in RecallBot,
+      where: rb.user_id == ^user.id,
+      left_join: m in Meeting,
+      on: m.recall_bot_id == rb.id,
+      left_join: ce in assoc(rb, :calendar_event),
+      order_by: [desc: fragment("coalesce(?, ?, ?)", m.recorded_at, ce.start_time, rb.inserted_at)],
+      select: rb
+    )
+    |> Repo.all()
+    |> Repo.preload([:calendar_event, meeting: [:meeting_participants]])
+  end
+
+  @doc """
   Gets a meeting with its details preloaded.
 
   ## Examples

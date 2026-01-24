@@ -8,7 +8,10 @@ defmodule SocialScribe.Bots do
 
   alias SocialScribe.Bots.RecallBot
   alias SocialScribe.Bots.UserBotPreference
+  alias SocialScribe.Accounts.User
+  alias SocialScribe.Meetings
   alias SocialScribe.RecallApi
+  alias SocialScribe.Workers.AIContentGenerationWorker
 
   @doc """
   Returns the list of recall_bots.
@@ -190,6 +193,68 @@ defmodule SocialScribe.Bots do
   end
 
   @doc """
+  Refreshes a recall bot and creates a meeting when transcript data is available.
+  """
+  def refresh_bot_and_meeting(%User{} = user, bot_id) when is_integer(bot_id) do
+    case Repo.get_by(RecallBot, id: bot_id, user_id: user.id) do
+      nil -> {:error, :not_found}
+      bot -> refresh_bot_and_meeting(bot)
+    end
+  end
+
+  def refresh_bot_and_meeting(%RecallBot{} = bot_record) do
+    case RecallApi.get_bot(bot_record.recall_bot_id) do
+      {:ok, %Tesla.Env{body: bot_api_info}} ->
+        new_status = latest_status(bot_api_info) || bot_record.status
+
+        with {:ok, updated_bot_record} <- update_recall_bot(bot_record, %{status: new_status}) do
+          meeting = Meetings.get_meeting_by_recall_bot_id(updated_bot_record.id)
+
+          cond do
+            is_nil(meeting) && new_status == "done" ->
+              case create_meeting_from_bot(updated_bot_record, bot_api_info) do
+                {:ok, :pending} -> {:ok, :pending}
+                {:ok, _meeting} -> {:ok, :meeting_created}
+                {:error, reason} -> {:error, reason}
+              end
+
+            is_nil(meeting) && recordings_present?(bot_api_info) ->
+              case fetch_transcript_data(updated_bot_record.recall_bot_id) do
+                {:ok, transcript_data} ->
+                  if transcript_available?(transcript_data) do
+                    case create_meeting_from_bot(updated_bot_record, bot_api_info,
+                           transcript_data: transcript_data,
+                           allow_empty_transcript: false
+                         ) do
+                      {:ok, _meeting} ->
+                        update_recall_bot(updated_bot_record, %{status: "done"})
+                        {:ok, :meeting_created}
+
+                      {:error, reason} ->
+                        {:error, reason}
+                    end
+                  else
+                    {:ok, :pending}
+                  end
+
+                {:error, reason} ->
+                  {:error, reason}
+              end
+
+            is_nil(meeting) ->
+              {:ok, :pending}
+
+            true ->
+              {:ok, :already_processed}
+          end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Returns the list of user_bot_preferences.
 
   ## Examples
@@ -285,5 +350,79 @@ defmodule SocialScribe.Bots do
   """
   def change_user_bot_preference(%UserBotPreference{} = user_bot_preference, attrs \\ %{}) do
     UserBotPreference.changeset(user_bot_preference, attrs)
+  end
+
+  defp latest_status(bot_api_info) do
+    status_changes =
+      Map.get(bot_api_info, :status_changes) || Map.get(bot_api_info, "status_changes") || []
+
+    status_changes
+    |> List.last()
+    |> then(fn
+      nil -> nil
+      last -> Map.get(last, :code, Map.get(last, "code"))
+    end)
+  end
+
+  defp recordings_present?(bot_api_info) do
+    recordings = Map.get(bot_api_info, :recordings) || Map.get(bot_api_info, "recordings") || []
+    Enum.any?(recordings)
+  end
+
+  defp fetch_transcript_data(recall_bot_id) do
+    case RecallApi.get_bot_transcript(recall_bot_id) do
+      {:ok, %Tesla.Env{body: data}} -> {:ok, data}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp transcript_available?(data) when is_list(data), do: data != []
+  defp transcript_available?(data) when is_binary(data), do: String.trim(data) != ""
+  defp transcript_available?(data) when is_map(data), do: map_size(data) > 0
+  defp transcript_available?(_data), do: false
+
+  defp fetch_participants(recall_bot_id) do
+    case RecallApi.get_bot_participants(recall_bot_id) do
+      {:ok, %Tesla.Env{body: participants_data}} -> {:ok, participants_data}
+      {:error, _reason} -> {:ok, []}
+    end
+  end
+
+  defp create_meeting_from_bot(bot_record, bot_api_info, opts \\ []) do
+    allow_empty_transcript = Keyword.get(opts, :allow_empty_transcript, true)
+
+    transcript_data =
+      case Keyword.fetch(opts, :transcript_data) do
+        {:ok, data} ->
+          data
+
+        :error ->
+          case fetch_transcript_data(bot_record.recall_bot_id) do
+            {:ok, data} -> data
+            {:error, _reason} -> if allow_empty_transcript, do: [], else: :unavailable
+          end
+      end
+
+    {:ok, participants_data} = fetch_participants(bot_record.recall_bot_id)
+
+    if transcript_data == :unavailable do
+      {:ok, :pending}
+    else
+      case Meetings.create_meeting_from_recall_data(
+             bot_record,
+             bot_api_info,
+             transcript_data,
+             participants_data
+           ) do
+        {:ok, meeting} ->
+          AIContentGenerationWorker.new(%{meeting_id: meeting.id})
+          |> Oban.insert()
+
+          {:ok, meeting}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
   end
 end
