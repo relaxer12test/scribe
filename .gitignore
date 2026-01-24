@@ -42,3 +42,5 @@ npm-debug.log
 hubspot.config.yml
 **.DS_Store**
 .env.prod
+/infra/
+!/infra/nginx/nginx.conf.template
