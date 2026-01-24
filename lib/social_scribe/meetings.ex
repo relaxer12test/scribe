@@ -372,16 +372,16 @@ defmodule SocialScribe.Meetings do
   defp parse_meeting_attrs(calendar_event, recall_bot, bot_api_info) do
     recording_info = List.first(bot_api_info.recordings || []) || %{}
 
-    completed_at =
-      case DateTime.from_iso8601(recording_info.completed_at) do
-        {:ok, parsed_completed_at, _} -> parsed_completed_at
-        _ -> nil
-      end
-
     recorded_at =
       case DateTime.from_iso8601(recording_info.started_at) do
         {:ok, parsed_recorded_at, _} -> parsed_recorded_at
-        _ -> nil
+        _ -> calendar_event.start_time
+      end
+
+    completed_at =
+      case DateTime.from_iso8601(recording_info.completed_at) do
+        {:ok, parsed_completed_at, _} -> parsed_completed_at
+        _ -> calendar_event.end_time
       end
 
     duration_seconds =

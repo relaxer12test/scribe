@@ -254,6 +254,37 @@ defmodule SocialScribe.AccountsTest do
       assert user_credential == Accounts.get_user_credential!(user_credential.id)
     end
 
+    test "update_credential_tokens/2 stores refresh_token when provided" do
+      user_credential = user_credential_fixture(%{refresh_token: "old_refresh"})
+
+      token_data = %{
+        "access_token" => "new_token",
+        "expires_in" => 3600,
+        "refresh_token" => "new_refresh"
+      }
+
+      assert {:ok, updated_credential} =
+               Accounts.update_credential_tokens(user_credential, token_data)
+
+      assert updated_credential.token == "new_token"
+      assert updated_credential.refresh_token == "new_refresh"
+    end
+
+    test "update_credential_tokens/2 keeps refresh_token when not provided" do
+      user_credential = user_credential_fixture(%{refresh_token: "existing_refresh"})
+
+      token_data = %{
+        "access_token" => "new_token",
+        "expires_in" => 3600
+      }
+
+      assert {:ok, updated_credential} =
+               Accounts.update_credential_tokens(user_credential, token_data)
+
+      assert updated_credential.token == "new_token"
+      assert updated_credential.refresh_token == "existing_refresh"
+    end
+
     test "delete_user_credential/1 deletes the user_credential" do
       user_credential = user_credential_fixture()
       assert {:ok, %UserCredential{}} = Accounts.delete_user_credential(user_credential)

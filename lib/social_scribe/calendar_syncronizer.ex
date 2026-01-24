@@ -19,12 +19,24 @@ defmodule SocialScribe.CalendarSyncronizer do
   #TODO: Add support for syncing only since the last sync time and record sync attempts
   """
   def sync_events_for_user(user) do
-    user
-    |> Accounts.list_user_credentials(provider: "google")
-    |> Task.async_stream(&fetch_and_sync_for_credential/1, ordered: false, on_timeout: :kill_task)
-    |> Stream.run()
+    results =
+      user
+      |> Accounts.list_user_credentials(provider: "google")
+      |> Task.async_stream(&fetch_and_sync_for_credential/1, ordered: false, on_timeout: :kill_task)
+      |> Enum.to_list()
 
-    {:ok, :sync_complete}
+    reauth_credentials =
+      results
+      |> Enum.flat_map(fn
+        {:ok, {:error, {:reauth_required, credential_info}}} -> [credential_info]
+        _ -> []
+      end)
+
+    if Enum.empty?(reauth_credentials) do
+      {:ok, :sync_complete}
+    else
+      {:error, {:reauth_required, reauth_credentials}}
+    end
   end
 
   defp fetch_and_sync_for_credential(%UserCredential{} = credential) do
@@ -39,6 +51,13 @@ defmodule SocialScribe.CalendarSyncronizer do
          :ok <- sync_items(items, credential.user_id, credential.id) do
       :ok
     else
+      {:error, {:reauth_required, credential_info}} ->
+        Logger.warning(
+          "Google Calendar sync requires reconnect for credential #{credential.id}: missing refresh_token."
+        )
+
+        {:error, {:reauth_required, credential_info}}
+
       {:error, reason} ->
         # Log errors but don't crash the sync for other accounts
         Logger.error("Failed to sync credential #{credential.id}: #{inspect(reason)}")
@@ -48,19 +67,33 @@ defmodule SocialScribe.CalendarSyncronizer do
 
   defp ensure_valid_token(%UserCredential{} = credential) do
     if DateTime.compare(credential.expires_at || DateTime.utc_now(), DateTime.utc_now()) == :lt do
-      case TokenRefresherApi.refresh_token(credential.refresh_token) do
-        {:ok, new_token_data} ->
-          {:ok, updated_credential} =
-            Accounts.update_credential_tokens(credential, new_token_data)
+      refresh_token = credential.refresh_token
 
-          {:ok, updated_credential.token}
+      if is_binary(refresh_token) and refresh_token != "" do
+        case TokenRefresherApi.refresh_token(refresh_token) do
+          {:ok, new_token_data} ->
+            {:ok, updated_credential} =
+              Accounts.update_credential_tokens(credential, new_token_data)
 
-        {:error, reason} ->
-          {:error, {:refresh_failed, reason}}
+            {:ok, updated_credential.token}
+
+          {:error, reason} ->
+            {:error, {:refresh_failed, reason}}
+        end
+      else
+        {:error, {:reauth_required, reauth_info(credential)}}
       end
     else
       {:ok, credential.token}
     end
+  end
+
+  defp reauth_info(%UserCredential{} = credential) do
+    %{
+      id: credential.id,
+      email: credential.email,
+      uid: credential.uid
+    }
   end
 
   defp sync_items(items, user_id, credential_id) do

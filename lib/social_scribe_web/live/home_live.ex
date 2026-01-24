@@ -15,9 +15,16 @@ defmodule SocialScribeWeb.HomeLive do
       socket
       |> assign(:page_title, "Upcoming Meetings")
       |> assign(:events, Calendar.list_upcoming_events(socket.assigns.current_user))
+      |> assign(:reauth_required, [])
       |> assign(:loading, true)
+      |> assign(:timezone, "Etc/UTC")
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_event("set_timezone", %{"timezone" => timezone}, socket) do
+    {:noreply, assign(socket, :timezone, normalize_timezone(timezone))}
   end
 
   @impl true
@@ -63,15 +70,61 @@ defmodule SocialScribeWeb.HomeLive do
 
   @impl true
   def handle_info(:sync_calendars, socket) do
-    CalendarSyncronizer.sync_events_for_user(socket.assigns.current_user)
+    sync_result = CalendarSyncronizer.sync_events_for_user(socket.assigns.current_user)
 
     events = Calendar.list_upcoming_events(socket.assigns.current_user)
 
     socket =
       socket
+      |> apply_sync_result(sync_result)
       |> assign(:events, events)
       |> assign(:loading, false)
 
     {:noreply, socket}
   end
+
+  defp apply_sync_result(socket, {:error, {:reauth_required, credentials}}) do
+    count = length(credentials)
+
+    message =
+      if count == 1 do
+        "Reconnect your Google account to resume calendar sync."
+      else
+        "Reconnect your Google accounts to resume calendar sync."
+      end
+
+    socket
+    |> put_flash(:error, message)
+    |> assign(:reauth_required, credentials)
+  end
+
+  defp apply_sync_result(socket, _result) do
+    assign(socket, :reauth_required, [])
+  end
+
+  defp normalize_timezone(timezone) when is_binary(timezone) do
+    case Timex.Timezone.get(timezone, DateTime.utc_now()) do
+      %Timex.TimezoneInfo{} -> timezone
+      %Timex.AmbiguousTimezoneInfo{} -> timezone
+      _ -> "Etc/UTC"
+    end
+  end
+
+  defp normalize_timezone(_timezone), do: "Etc/UTC"
+
+  defp format_event_time(%DateTime{} = datetime, timezone) do
+    datetime
+    |> shift_to_timezone(timezone)
+    |> Timex.format!("%m/%d/%Y, %H:%M:%S", :strftime)
+  end
+
+  defp shift_to_timezone(%DateTime{} = datetime, timezone) when is_binary(timezone) do
+    case Timex.Timezone.convert(datetime, timezone) do
+      %Timex.AmbiguousDateTime{before: before} -> before
+      %DateTime{} = converted -> converted
+      {:error, _} -> datetime
+    end
+  end
+
+  defp shift_to_timezone(datetime, _timezone), do: datetime
 end

@@ -1,0 +1,27 @@
+<div class="container mx-auto px-4 py-8 md:py-12">
+  <h1 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6">
+    {@page_title}
+  </h1>
+
+  <%= if Enum.empty?(@archives) do %>
+    <div class="bg-white shadow-lg rounded-lg p-6 text-center text-slate-500 text-sm">
+      No archived meetings yet.
+    </div>
+  <% else %>
+    <div class="space-y-4">
+      <div :for={archive <- @archives} class="bg-white shadow-lg rounded-lg p-5">
+        <div class="space-y-1">
+          <p class="text-sm font-semibold text-slate-800">
+            {archive.title || archive.meeting_url || archive.recall_bot_id}
+          </p>
+          <p class="text-xs text-slate-500">
+            Bot: {archive.recall_bot_id} - Status: {archive.status || "unknown"}
+          </p>
+          <p class="text-xs text-slate-500">
+            Recorded: {archive.recorded_at || "unknown"} - Duration: {format_duration(archive.duration_seconds)}
+          </p>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -54,31 +54,42 @@ defmodule SocialScribe.Workers.BotStatusPoller do
   defp process_completed_bot(bot_record, bot_api_info) do
     Logger.info("Bot #{bot_record.recall_bot_id} is done. Fetching transcript and participants...")
 
-    with {:ok, %Tesla.Env{body: transcript_data}} <-
-           RecallApi.get_bot_transcript(bot_record.recall_bot_id),
-         {:ok, participants_data} <- fetch_participants(bot_record.recall_bot_id) do
-      Logger.info("Successfully fetched transcript and participants for bot #{bot_record.recall_bot_id}")
-
-      case Meetings.create_meeting_from_recall_data(bot_record, bot_api_info, transcript_data, participants_data) do
-        {:ok, meeting} ->
-          Logger.info(
-            "Successfully created meeting record #{meeting.id} from bot #{bot_record.recall_bot_id}"
-          )
-
-          SocialScribe.Workers.AIContentGenerationWorker.new(%{meeting_id: meeting.id})
-          |> Oban.insert()
-
-          Logger.info("Enqueued AI content generation for meeting #{meeting.id}")
+    transcript_data =
+      case RecallApi.get_bot_transcript(bot_record.recall_bot_id) do
+        {:ok, %Tesla.Env{body: data}} ->
+          data
 
         {:error, reason} ->
-          Logger.error(
-            "Failed to create meeting record from bot #{bot_record.recall_bot_id}: #{inspect(reason)}"
+          Logger.warning(
+            "Failed to fetch transcript for bot #{bot_record.recall_bot_id}: #{inspect(reason)}"
           )
+
+          []
       end
-    else
+
+    {:ok, participants_data} = fetch_participants(bot_record.recall_bot_id)
+
+    Logger.info("Fetched data for bot #{bot_record.recall_bot_id}. Creating meeting record...")
+
+    case Meetings.create_meeting_from_recall_data(
+           bot_record,
+           bot_api_info,
+           transcript_data,
+           participants_data
+         ) do
+      {:ok, meeting} ->
+        Logger.info(
+          "Successfully created meeting record #{meeting.id} from bot #{bot_record.recall_bot_id}"
+        )
+
+        SocialScribe.Workers.AIContentGenerationWorker.new(%{meeting_id: meeting.id})
+        |> Oban.insert()
+
+        Logger.info("Enqueued AI content generation for meeting #{meeting.id}")
+
       {:error, reason} ->
         Logger.error(
-          "Failed to fetch data for bot #{bot_record.recall_bot_id} after completion: #{inspect(reason)}"
+          "Failed to create meeting record from bot #{bot_record.recall_bot_id}: #{inspect(reason)}"
         )
     end
   end

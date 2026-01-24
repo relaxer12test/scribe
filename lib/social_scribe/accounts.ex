@@ -388,15 +388,26 @@ defmodule SocialScribe.Accounts do
       iex> update_credential_tokens(user_credential, %{"access_token" => "new_token", "expires_in" => 3600})
       {:ok, %UserCredential{}}
   """
-  def update_credential_tokens(%UserCredential{} = credential, %{
-        "access_token" => token,
-        "expires_in" => expires_in
-      }) do
-    credential
-    |> UserCredential.changeset(%{
+  def update_credential_tokens(
+        %UserCredential{} = credential,
+        %{"access_token" => token, "expires_in" => expires_in} = token_data
+      ) do
+    updates = %{
       token: token,
       expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second)
-    })
+    }
+
+    updates =
+      case Map.get(token_data, "refresh_token") do
+        refresh_token when is_binary(refresh_token) and refresh_token != "" ->
+          Map.put(updates, :refresh_token, refresh_token)
+
+        _ ->
+          updates
+      end
+
+    credential
+    |> UserCredential.changeset(updates)
     |> Repo.update()
   end
 

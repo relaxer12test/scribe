@@ -96,4 +96,9 @@ defmodule SocialScribe.Recall do
       # Fallback to direct participant_events (older structure)
       get_in(recording, [:participant_events, :data, :participants_download_url])
   end
+
+  @impl SocialScribe.RecallApi
+  def list_bots(params \\ %{}) do
+    Tesla.get(client(), "/bot", query: params)
+  end
 end

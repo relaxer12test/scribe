@@ -85,6 +85,8 @@ defmodule SocialScribeWeb.Router do
       live "/meetings/:id/hubspot", MeetingLive.Show, :hubspot
       live "/meetings/:id/salesforce", MeetingLive.Show, :salesforce
 
+      live "/recall-archive", RecallArchiveLive.Index, :index
+
       live "/automations", AutomationLive.Index, :index
       live "/automations/new", AutomationLive.Index, :new
       live "/automations/:id/edit", AutomationLive.Index, :edit
@@ -105,6 +107,7 @@ defmodule SocialScribeWeb.Router do
     live_session :current_user,
       on_mount: [{SocialScribeWeb.UserAuth, :mount_current_user}] do
       live "/", LandingLive
+      live "/users/log_in", LandingLive, :log_in
     end
   end
 end

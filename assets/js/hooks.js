@@ -13,4 +13,18 @@ Hooks.Clipboard = {
     }
 }
 
+Hooks.BrowserTimezone = {
+    mounted() {
+        let timezone = "Etc/UTC"
+        try {
+            const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone
+            if (resolved) {
+                timezone = resolved
+            }
+        } catch (_) {
+        }
+        this.pushEvent("set_timezone", { timezone: timezone })
+    }
+}
+
 export default Hooks

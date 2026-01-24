@@ -103,5 +103,31 @@ defmodule SocialScribe.CalendarSyncronizerTest do
       assert Repo.aggregate(CalendarEvent, :count, :id) == 1
       assert Repo.get_by!(CalendarEvent, google_event_id: "zoom-event-123")
     end
+
+    test "returns reauth_required when token is expired but refresh_token is missing" do
+      user = user_fixture()
+
+      credential =
+        user_credential_fixture(%{
+          provider: "google",
+          user_id: user.id,
+          refresh_token: nil,
+          expires_at: DateTime.add(DateTime.utc_now(), -100, :second)
+        })
+
+      stub(GoogleApiMock, :list_events, fn _token, _start_time, _end_time, _calendar_id ->
+        flunk("list_events should not be called when refresh_token is missing")
+      end)
+
+      stub(TokenRefresherMock, :refresh_token, fn _refresh_token ->
+        flunk("refresh_token should not be called when refresh_token is missing")
+      end)
+
+      assert {:error, {:reauth_required, reauth_credentials}} =
+               CalendarSyncronizer.sync_events_for_user(user)
+
+      assert Enum.any?(reauth_credentials, &(&1.id == credential.id))
+      assert Repo.aggregate(CalendarEvent, :count, :id) == 0
+    end
   end
 end
