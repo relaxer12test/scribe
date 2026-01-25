@@ -15,6 +15,7 @@ PENDING_FILE="${DEPLOY_PENDING_FILE:-$STATE_DIR/pending}"
 LOG_FILE="${DEPLOY_LOG_FILE:-$STATE_DIR/deploy.log}"
 BRANCH="${DEPLOY_BRANCH:-master}"
 SERVICES="${DEPLOY_SERVICES:-app postgres caddy}"
+RUN_MIGRATIONS="${DEPLOY_RUN_MIGRATIONS:-1}"
 
 log() {
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -52,6 +53,11 @@ if [ "$current" != "$target" ]; then
   git checkout "$BRANCH"
   git pull --ff-only origin "$BRANCH"
   docker compose up -d --force-recreate --build $SERVICES
+  if [ "$RUN_MIGRATIONS" = "1" ]; then
+    log "Running migrations."
+    docker compose exec -T app /app/bin/migrate
+    log "Migrations complete."
+  fi
   log "Deploy finished for $target."
 else
   log "Already at $target; no deploy needed."
