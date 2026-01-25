@@ -20,7 +20,7 @@ defmodule SocialScribe.ChatAssistant do
   def process_message(thread_id, user_id, content, mentions, credentials) do
     with {:ok, user_message} <- Chat.create_user_message(thread_id, content, format_mentions(mentions)),
          {:ok, context} <- build_context(user_id, mentions, credentials),
-         history <- get_conversation_history(thread_id),
+         history <- get_conversation_history(thread_id, user_id),
          {:ok, ai_response} <-
            AIContentGeneratorApi.generate_chat_response(
              content,
@@ -162,8 +162,8 @@ defmodule SocialScribe.ChatAssistant do
     |> Enum.take(5)
   end
 
-  defp get_conversation_history(thread_id) do
-    case Chat.get_thread_with_messages(thread_id, nil) do
+  defp get_conversation_history(thread_id, user_id) do
+    case Chat.get_thread_with_messages(thread_id, user_id) do
       nil ->
         []
 

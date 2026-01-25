@@ -30,6 +30,10 @@ defmodule SocialScribe.Chat do
   Get a single thread with all messages.
   Returns nil if not found or user doesn't own the thread.
   """
+  def get_thread_with_messages(thread_id, user_id)
+      when is_nil(thread_id) or is_nil(user_id),
+      do: nil
+
   def get_thread_with_messages(thread_id, user_id) do
     from(t in ChatThread,
       where: t.id == ^thread_id and t.user_id == ^user_id,

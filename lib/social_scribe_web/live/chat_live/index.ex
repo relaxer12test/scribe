@@ -27,6 +27,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
       |> assign(:mention_search_results, [])
       |> assign(:mention_query, nil)
       |> assign(:sending, false)
+      |> assign(:pending_message, nil)
       |> assign(:hubspot_credential, hubspot_credential)
       |> assign(:salesforce_credential, salesforce_credential)
 
@@ -97,7 +98,8 @@ defmodule SocialScribeWeb.ChatLive.Index do
           {:ok, thread} ->
             socket =
               socket
-              |> assign(current_thread: thread, sending: true, input_value: "", mentions: [])
+              |> assign(current_thread: thread, sending: true, input_value: "", mentions: [], pending_message: content)
+              |> push_event("update_chat_input", %{value: ""})
 
             send(self(), {:process_message, thread.id, content, mentions})
             {:noreply, push_patch(socket, to: ~p"/dashboard/chat/#{thread.id}")}
@@ -107,7 +109,11 @@ defmodule SocialScribeWeb.ChatLive.Index do
         end
 
       true ->
-        socket = assign(socket, sending: true, input_value: "", mentions: [])
+        socket =
+          socket
+          |> assign(sending: true, input_value: "", mentions: [], pending_message: content)
+          |> push_event("update_chat_input", %{value: ""})
+
         send(self(), {:process_message, socket.assigns.current_thread.id, content, mentions})
         {:noreply, socket}
     end
@@ -136,12 +142,14 @@ defmodule SocialScribeWeb.ChatLive.Index do
       end
 
     {:noreply,
-     assign(socket,
+     socket
+     |> assign(
        input_value: new_value,
        mentions: socket.assigns.mentions ++ [mention],
        mention_query: nil,
        mention_search_results: []
-     )}
+     )
+     |> push_event("update_chat_input", %{value: new_value})}
   end
 
   @impl true
@@ -199,7 +207,8 @@ defmodule SocialScribeWeb.ChatLive.Index do
            messages: grouped,
            threads: threads,
            current_thread: thread,
-           sending: false
+           sending: false,
+           pending_message: nil
          )}
 
       {:error, reason} ->
@@ -208,7 +217,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
         {:noreply,
          socket
          |> put_flash(:error, "Failed to process message. Please try again.")
-         |> assign(sending: false)}
+         |> assign(sending: false, pending_message: nil)}
     end
   end
 
@@ -276,10 +285,21 @@ defmodule SocialScribeWeb.ChatLive.Index do
     relative_time(datetime)
   end
 
-  defp relative_time(datetime) do
+  defp relative_time(%NaiveDateTime{} = datetime) do
+    now = NaiveDateTime.utc_now()
+    diff = NaiveDateTime.diff(now, datetime, :second)
+    humanize_relative_time(diff, datetime)
+  end
+
+  defp relative_time(%DateTime{} = datetime) do
     now = DateTime.utc_now()
     diff = DateTime.diff(now, datetime, :second)
+    humanize_relative_time(diff, datetime)
+  end
 
+  defp relative_time(_), do: ""
+
+  defp humanize_relative_time(diff, datetime) do
     cond do
       diff < 60 -> "Just now"
       diff < 3600 -> "#{div(diff, 60)}m ago"
