@@ -3,3 +3,171 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+/* ===========================================
+   Chat Bubble Styles
+   =========================================== */
+
+/* Chat panel entrance animation */
+.chat-panel-enter {
+  animation: chatPanelEnter 0.2s ease-out;
+}
+
+@keyframes chatPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Streaming cursor animation */
+.streaming-cursor {
+  animation: blink 0.8s ease-in-out infinite;
+  color: #6366f1;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* ===========================================
+   Mention Chip Styles
+   =========================================== */
+
+.mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+/* Contact chip - blue */
+.mention-chip.contact {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.mention-chip.contact:hover {
+  background-color: #bfdbfe;
+}
+
+/* Meeting chip - green */
+.mention-chip.meeting {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.mention-chip.meeting:hover {
+  background-color: #bbf7d0;
+}
+
+/* Deal chip - purple */
+.mention-chip.deal {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+
+.mention-chip.deal:hover {
+  background-color: #e9d5ff;
+}
+
+.mention-chip-icon {
+  font-size: 0.875rem;
+}
+
+.mention-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  margin-left: 0.125rem;
+  opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.mention-chip-remove:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.mention-chip-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mention-chip-avatar.contact {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.mention-chip-avatar.meeting {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+/* ===========================================
+   Chat Bubble FAB hover effect
+   =========================================== */
+
+.chat-fab-pulse {
+  position: relative;
+}
+
+.chat-fab-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.3);
+  animation: pulse-ring 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}

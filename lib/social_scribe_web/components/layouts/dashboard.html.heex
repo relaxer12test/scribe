@@ -46,15 +46,13 @@
   </div>
 </header>
 
-<div class="flex h-screen bg-[#f1f3f4] relative">
+<div id="dashboard-container" class="flex h-screen bg-[#f1f3f4] relative" phx-hook="GlobalKeyboard">
   <.sidebar
     base_path={~p"/dashboard"}
     current_path={@current_path}
     links={[
       {"Home", "hero-home", ~p"/dashboard"},
       {"Meetings", "hero-calendar", ~p"/dashboard/meetings"},
-      {"Ask Anything", "hero-chat-bubble-left-right", ~p"/dashboard/chat"},
-      {"Recall Archive", "hero-archive-box", ~p"/dashboard/recall-archive"},
       {"Automations", "hero-rocket-launch", ~p"/dashboard/automations"},
       {"Settings", "hero-cog-6-tooth", ~p"/dashboard/settings"}
     ]}
@@ -66,4 +64,11 @@
       {@inner_content}
     </main>
   </div>
+
+  <!-- Floating Chat Bubble -->
+  <%= live_render(@socket, SocialScribeWeb.ChatBubbleLive,
+    id: "chat-bubble",
+    session: %{"user_token" => assigns[:user_token]},
+    sticky: true
+  ) %>
 </div>

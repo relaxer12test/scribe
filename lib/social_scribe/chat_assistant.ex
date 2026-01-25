@@ -39,6 +39,34 @@ defmodule SocialScribe.ChatAssistant do
   end
 
   @doc """
+  Process a user message with streaming AI response.
+
+  Similar to process_message/5 but streams the response via callback.
+  The callback receives text chunks as they arrive.
+  """
+  def process_message_stream(thread_id, user_id, content, mentions, credentials, stream_callback) do
+    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, format_mentions(mentions)),
+         {:ok, context} <- build_context(user_id, mentions, credentials),
+         history <- get_conversation_history(thread_id, user_id),
+         {:ok, ai_response} <-
+           AIContentGeneratorApi.generate_chat_response_stream(
+             content,
+             context.contacts,
+             context.meetings,
+             history,
+             stream_callback
+           ),
+         {:ok, assistant_message} <-
+           Chat.create_assistant_message(
+             thread_id,
+             ai_response.answer,
+             %{"meetings" => ai_response.sources}
+           ) do
+      {:ok, %{user_message: user_message, assistant_message: assistant_message}}
+    end
+  end
+
+  @doc """
   Search contacts across connected CRMs.
 
   Returns a combined list of contacts from HubSpot and/or Salesforce,

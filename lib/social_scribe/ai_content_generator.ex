@@ -202,6 +202,58 @@ defmodule SocialScribe.AIContentGenerator do
     end
   end
 
+  @impl SocialScribe.AIContentGeneratorApi
+  def generate_chat_response_stream(user_query, mentioned_contacts, meeting_context, conversation_history, callback) do
+    prompt = build_chat_prompt_simple(user_query, mentioned_contacts, meeting_context, conversation_history)
+
+    case call_gemini(prompt) do
+      {:ok, response} ->
+        # Simulate streaming by sending words progressively
+        simulate_streaming(response, callback)
+        {:ok, %{answer: response, sources: []}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_chat_prompt_simple(user_query, contacts, meetings, history) do
+    """
+    You are an AI assistant that answers questions about CRM contacts and meeting data.
+    You help users understand their meetings and contact information from their CRM (HubSpot or Salesforce).
+
+    ## Contact Information
+    #{format_contacts_for_prompt(contacts)}
+
+    ## Meeting Context
+    #{format_meetings_for_prompt(meetings)}
+
+    ## Conversation History
+    #{format_history_for_prompt(history)}
+
+    ## Current Question
+    #{user_query}
+
+    Instructions:
+    - Answer the user's question based on the contact information and meeting context provided
+    - Be specific and reference the actual data when possible
+    - If you reference information from a meeting, mention the meeting title
+    - If you don't have enough information to answer, say so clearly
+    - Respond in plain text (not JSON), be concise and helpful
+    """
+  end
+
+  defp simulate_streaming(text, callback) do
+    # Split text into words and send them progressively
+    words = String.split(text, ~r/(\s+)/, include_captures: true)
+
+    Enum.each(words, fn word ->
+      callback.(word)
+      # Small delay between words for visual effect
+      Process.sleep(20)
+    end)
+  end
+
   defp build_chat_prompt(user_query, contacts, meetings, history) do
     """
     You are an AI assistant that answers questions about CRM contacts and meeting data.

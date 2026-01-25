@@ -2,9 +2,11 @@ defmodule SocialScribeWeb.LiveHooks do
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4]
 
-  def on_mount(:assign_current_path, _params, _session, socket) do
+  def on_mount(:assign_current_path, _params, session, socket) do
     socket =
-      attach_hook(socket, :assign_current_path, :handle_params, &assign_current_path/3)
+      socket
+      |> attach_hook(:assign_current_path, :handle_params, &assign_current_path/3)
+      |> assign(:user_token, session["user_token"])
 
     {:cont, socket}
   end

@@ -48,5 +48,34 @@ defmodule SocialScribeWeb.UserSettingsLiveTest do
       assert has_element?(view, "li", "(linked_account@example.com)")
       refute has_element?(view, "p", "You haven't connected any Google accounts yet.")
     end
+
+    test "shows Salesforce connect link when none connected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard/settings")
+
+      assert has_element?(view, "p", "You haven't connected any Salesforce accounts yet.")
+      assert has_element?(view, "a", "Connect Salesforce")
+    end
+
+    test "lists connected Salesforce account and allows disconnect", %{conn: conn, user: user} do
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          uid: "salesforce-uid-123",
+          email: "salesforce@example.com"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard/settings")
+
+      assert has_element?(view, "li", "UID: salesforce-uid-123")
+      assert has_element?(view, "li", "(salesforce@example.com)")
+      refute has_element?(view, "a", "Connect Salesforce")
+
+      view
+      |> element("button[phx-click='disconnect_salesforce'][phx-value-id='#{credential.id}']")
+      |> render_click()
+
+      assert render(view) =~ "Salesforce account disconnected successfully."
+      assert render(view) =~ "You haven't connected any Salesforce accounts yet."
+    end
   end
 end

@@ -1,7 +1,64 @@
 defmodule SocialScribe.SalesforceSuggestionsTest do
   use SocialScribe.DataCase
 
+  import Mox
+
+  import SocialScribe.AccountsFixtures
+  import SocialScribe.MeetingsFixtures
+
   alias SocialScribe.SalesforceSuggestions
+
+  setup :verify_on_exit!
+
+  describe "generate_suggestions/3" do
+    test "filters unchanged values and applies field labels" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+      meeting = meeting_fixture()
+
+      contact = %{
+        id: "003",
+        firstname: "Pat",
+        lastname: "Doe",
+        email: "pat@example.com",
+        "Phone" => "555-1234",
+        "Title" => "CTO"
+      }
+
+      ai_suggestions = [
+        %{field: "Phone", value: "555-1234", context: "Mentioned phone", timestamp: "00:10"},
+        %{field: "Title", value: "VP", context: "Mentioned title", timestamp: "00:20"}
+      ]
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:get_contact, fn ^credential, "003" -> {:ok, contact} end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_salesforce_suggestions, fn ^meeting -> {:ok, ai_suggestions} end)
+
+      assert {:ok, %{contact: ^contact, suggestions: [suggestion]}} =
+               SalesforceSuggestions.generate_suggestions(credential, "003", meeting)
+
+      assert suggestion.field == "Title"
+      assert suggestion.label == "Job Title"
+      assert suggestion.current_value == "CTO"
+      assert suggestion.new_value == "VP"
+      assert suggestion.apply == true
+      assert suggestion.has_change == true
+    end
+
+    test "returns error when contact lookup fails" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+      meeting = meeting_fixture()
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:get_contact, fn ^credential, "003" -> {:error, :not_found} end)
+
+      assert {:error, :not_found} =
+               SalesforceSuggestions.generate_suggestions(credential, "003", meeting)
+    end
+  end
 
   describe "merge_with_contact/2" do
     test "merges suggestions with contact data and filters unchanged values" do

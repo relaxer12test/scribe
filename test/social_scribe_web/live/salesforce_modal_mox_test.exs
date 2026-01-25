@@ -171,6 +171,146 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       assert html =~ "Test User"
       assert html =~ "test@example.com"
     end
+
+    test "applies selected updates and closes modal", %{conn: conn, meeting: meeting} do
+      mock_contact = %{
+        id: "003000000000001",
+        firstname: "John",
+        lastname: "Doe",
+        email: "john@example.com",
+        phone: nil,
+        display_name: "John Doe"
+      }
+
+      mock_salesforce_contact = %{
+        "Phone" => nil,
+        "FirstName" => "John",
+        "LastName" => "Doe",
+        "Email" => "john@example.com",
+        :id => "003000000000001",
+        :firstname => "John",
+        :lastname => "Doe",
+        :email => "john@example.com"
+      }
+
+      mock_suggestions = [
+        %{
+          field: "Phone",
+          value: "555-1234",
+          context: "Mentioned phone number",
+          timestamp: "00:10"
+        }
+      ]
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:search_contacts, fn _credential, _query ->
+        {:ok, [mock_contact]}
+      end)
+      |> expect(:get_contact, fn _credential, contact_id ->
+        assert contact_id == "003000000000001"
+        {:ok, mock_salesforce_contact}
+      end)
+      |> expect(:update_contact, fn _credential, contact_id, updates ->
+        assert contact_id == "003000000000001"
+        assert updates == %{"Phone" => "555-1234"}
+        {:ok, %{id: contact_id}}
+      end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_salesforce_suggestions, fn _meeting ->
+        {:ok, mock_suggestions}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+
+      view
+      |> element("input[phx-keyup='contact_search']")
+      |> render_keyup(%{"value" => "John"})
+
+      :timer.sleep(200)
+
+      view
+      |> element("button[phx-click='select_contact'][phx-value-id='003000000000001']")
+      |> render_click()
+
+      :timer.sleep(500)
+
+      view
+      |> element("form[phx-submit='apply_updates']")
+      |> render_submit(%{"apply" => %{"Phone" => "1"}, "values" => %{"Phone" => "555-1234"}})
+
+      assert_patch(view, ~p"/dashboard/meetings/#{meeting.id}")
+      assert render(view) =~ "Successfully updated"
+    end
+
+    test "shows error when update fails", %{conn: conn, meeting: meeting} do
+      mock_contact = %{
+        id: "003000000000002",
+        firstname: "Jane",
+        lastname: "Doe",
+        email: "jane@example.com",
+        phone: nil,
+        display_name: "Jane Doe"
+      }
+
+      mock_salesforce_contact = %{
+        "Phone" => nil,
+        "FirstName" => "Jane",
+        "LastName" => "Doe",
+        "Email" => "jane@example.com",
+        :id => "003000000000002",
+        :firstname => "Jane",
+        :lastname => "Doe",
+        :email => "jane@example.com"
+      }
+
+      mock_suggestions = [
+        %{
+          field: "Phone",
+          value: "777-8888",
+          context: "Mentioned phone number",
+          timestamp: "00:15"
+        }
+      ]
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:search_contacts, fn _credential, _query ->
+        {:ok, [mock_contact]}
+      end)
+      |> expect(:get_contact, fn _credential, contact_id ->
+        assert contact_id == "003000000000002"
+        {:ok, mock_salesforce_contact}
+      end)
+      |> expect(:update_contact, fn _credential, contact_id, _updates ->
+        assert contact_id == "003000000000002"
+        {:error, :update_failed}
+      end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_salesforce_suggestions, fn _meeting ->
+        {:ok, mock_suggestions}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+
+      view
+      |> element("input[phx-keyup='contact_search']")
+      |> render_keyup(%{"value" => "Jane"})
+
+      :timer.sleep(200)
+
+      view
+      |> element("button[phx-click='select_contact'][phx-value-id='003000000000002']")
+      |> render_click()
+
+      :timer.sleep(500)
+
+      view
+      |> element("form[phx-submit='apply_updates']")
+      |> render_submit(%{"apply" => %{"Phone" => "1"}, "values" => %{"Phone" => "777-8888"}})
+
+      assert render(view) =~ "Failed to update contact"
+    end
   end
 
   describe "Salesforce API behavior delegation" do
