@@ -19,6 +19,12 @@ defmodule SocialScribeWeb.Router do
   end
 
   scope "/", SocialScribeWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :index
+  end
+
+  scope "/", SocialScribeWeb do
     pipe_through :browser
   end
 
