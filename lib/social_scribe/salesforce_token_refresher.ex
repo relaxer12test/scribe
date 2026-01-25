@@ -133,7 +133,7 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   defp reauth_error?(_), do: false
 
   defp mark_reauth_required(%UserCredential{} = credential, reason) do
-    Logger.warning("Salesforce refresh requires reauth: #{inspect(reason)}")
+    Logger.debug("Salesforce refresh requires reauth: #{inspect(reason)}")
 
     case Accounts.mark_user_credential_reauth_required(credential) do
       {:ok, updated} ->

@@ -423,7 +423,7 @@ defmodule SocialScribe.SalesforceApi do
         end
 
       {:error, {:reauth_required, _info} = error} ->
-        Logger.warning("Salesforce refresh requires reauth.")
+        Logger.debug("Salesforce refresh requires reauth.")
         {:error, error}
 
       {:error, refresh_error} ->
