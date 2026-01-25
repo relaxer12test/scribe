@@ -10,11 +10,13 @@ defmodule SocialScribe.Calendar do
   alias SocialScribe.Calendar.CalendarEvent
 
   @doc """
-  Lists all upcoming events for a given user from the local database.
+  Lists upcoming and in-progress events for a given user from the local database.
   """
   def list_upcoming_events(user) do
+    now = DateTime.utc_now()
+
     from(e in CalendarEvent,
-      where: e.user_id == ^user.id and e.start_time > ^DateTime.utc_now(),
+      where: e.user_id == ^user.id and e.end_time >= ^now,
       order_by: [asc: e.start_time]
     )
     |> Repo.all()

@@ -13,7 +13,7 @@ defmodule SocialScribeWeb.HomeLive do
 
     socket =
       socket
-      |> assign(:page_title, "Upcoming Meetings")
+      |> assign(:page_title, "Active & Upcoming Meetings")
       |> assign(:events, Calendar.list_upcoming_events(socket.assigns.current_user))
       |> assign(:reauth_required, [])
       |> assign(:loading, true)
@@ -127,4 +127,13 @@ defmodule SocialScribeWeb.HomeLive do
   end
 
   defp shift_to_timezone(datetime, _timezone), do: datetime
+
+  defp event_in_progress?(event) do
+    now = DateTime.utc_now()
+    start_time = event.start_time
+    end_time = event.end_time
+
+    is_struct(start_time, DateTime) and is_struct(end_time, DateTime) and
+      DateTime.compare(start_time, now) != :gt and DateTime.compare(end_time, now) != :lt
+  end
 end

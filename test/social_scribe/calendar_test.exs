@@ -22,29 +22,41 @@ defmodule SocialScribe.CalendarTest do
       record_meeting: nil
     }
 
-    test "list_upcoming_events/1 returns all upcoming events for a given user" do
+    test "list_upcoming_events/1 returns upcoming and in-progress events for a given user" do
       user = user_fixture()
       user_credential = user_credential_fixture(%{user_id: user.id})
+      now = DateTime.utc_now()
+
+      in_progress_event =
+        calendar_event_fixture(%{
+          user_id: user.id,
+          user_credential_id: user_credential.id,
+          start_time: DateTime.add(now, -1, :hour),
+          end_time: DateTime.add(now, 1, :hour)
+        })
 
       upcoming_event =
         calendar_event_fixture(%{
           user_id: user.id,
           user_credential_id: user_credential.id,
-          start_time: DateTime.add(DateTime.utc_now(), 1, :hour)
+          start_time: DateTime.add(now, 2, :hour),
+          end_time: DateTime.add(now, 3, :hour)
         })
 
-      assert Calendar.list_upcoming_events(user) == [upcoming_event]
+      assert Calendar.list_upcoming_events(user) == [in_progress_event, upcoming_event]
     end
 
     test "list_upcoming_events/1 returns an empty list if there are no upcoming events" do
       user = user_fixture()
       user_credential = user_credential_fixture(%{user_id: user.id})
+      now = DateTime.utc_now()
 
       _past_event =
         calendar_event_fixture(%{
           user_id: user.id,
           user_credential_id: user_credential.id,
-          start_time: DateTime.add(DateTime.utc_now(), -1, :hour)
+          start_time: DateTime.add(now, -2, :hour),
+          end_time: DateTime.add(now, -1, :hour)
         })
 
       assert Calendar.list_upcoming_events(user) == []

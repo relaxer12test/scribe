@@ -124,15 +124,12 @@ defmodule SocialScribe.Bots do
   def create_and_dispatch_bot(user, calendar_event) do
     user_bot_preference = get_user_bot_preference(user.id) || %UserBotPreference{}
     join_minute_offset = user_bot_preference.join_minute_offset
+    join_at = schedule_join_at(calendar_event.start_time, join_minute_offset)
 
     with {:ok, %{status: status, body: api_response}} when status in 200..299 <-
            RecallApi.create_bot(
              calendar_event.hangout_link,
-             DateTime.add(
-               calendar_event.start_time,
-               -join_minute_offset,
-               :minute
-             )
+             join_at
            ),
          %{id: bot_id} <- api_response do
       status = get_in(api_response, [:status_changes, Access.at(0), :code]) || "ready"
@@ -179,16 +176,27 @@ defmodule SocialScribe.Bots do
   def update_bot_schedule(bot, calendar_event) do
     user_bot_preference = get_user_bot_preference(bot.user_id) || %UserBotPreference{}
     join_minute_offset = user_bot_preference.join_minute_offset
+    join_at = schedule_join_at(calendar_event.start_time, join_minute_offset)
 
     with {:ok, %{body: api_response}} <-
            RecallApi.update_bot(
              bot.recall_bot_id,
              calendar_event.hangout_link,
-             DateTime.add(calendar_event.start_time, -join_minute_offset, :minute)
+             join_at
            ) do
       update_recall_bot(bot, %{
         status: api_response.status_changes |> List.first() |> Map.get(:code)
       })
+    end
+  end
+
+  defp schedule_join_at(%DateTime{} = start_time, join_minute_offset) do
+    scheduled_at = DateTime.add(start_time, -join_minute_offset, :minute)
+    now = DateTime.utc_now()
+
+    case DateTime.compare(scheduled_at, now) do
+      :lt -> now
+      _ -> scheduled_at
     end
   end
 
