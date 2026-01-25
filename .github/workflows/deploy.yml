@@ -20,5 +20,8 @@ jobs:
           script: |
             set -euo pipefail
             cd scribe
-            git pull --ff-only
-            docker compose up -d --force-recreate --build
+            if [ ! -f ./scripts/deploy.sh ]; then
+              git pull --ff-only
+            fi
+            chmod +x ./scripts/deploy.sh
+            nohup ./scripts/deploy.sh >/dev/null 2>&1 &
