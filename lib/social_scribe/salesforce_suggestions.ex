@@ -30,6 +30,7 @@ defmodule SocialScribe.SalesforceSuggestions do
   - label: human-readable field label
   - current_value: the existing value in Salesforce (or nil)
   - new_value: the AI-suggested value
+  - person: the suggested person name from the transcript (or nil)
   - context: explanation of where this was found in the transcript
   - apply: boolean indicating whether to apply this update (default false)
   """
@@ -47,6 +48,7 @@ defmodule SocialScribe.SalesforceSuggestions do
             label: Map.get(@field_labels, field, field),
             current_value: current_value,
             new_value: suggestion.value,
+            person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
             context: suggestion.context,
             timestamp: suggestion.timestamp,
             apply: true,
@@ -74,6 +76,7 @@ defmodule SocialScribe.SalesforceSuggestions do
               label: Map.get(@field_labels, suggestion.field, suggestion.field),
               current_value: nil,
               new_value: suggestion.value,
+              person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
               context: Map.get(suggestion, :context),
               timestamp: Map.get(suggestion, :timestamp),
               apply: true,

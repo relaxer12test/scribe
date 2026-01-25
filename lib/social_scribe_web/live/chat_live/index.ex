@@ -13,6 +13,8 @@ defmodule SocialScribeWeb.ChatLive.Index do
 
     hubspot_credential = Accounts.get_user_hubspot_credential(user.id)
     salesforce_credential = Accounts.get_user_credential(user, "salesforce")
+    salesforce_reauth_required =
+      not is_nil(salesforce_credential) and not is_nil(salesforce_credential.reauth_required_at)
 
     socket =
       socket
@@ -30,6 +32,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
       |> assign(:pending_message, nil)
       |> assign(:hubspot_credential, hubspot_credential)
       |> assign(:salesforce_credential, salesforce_credential)
+      |> assign(:salesforce_reauth_required, salesforce_reauth_required)
 
     {:ok, socket}
   end
@@ -227,8 +230,15 @@ defmodule SocialScribeWeb.ChatLive.Index do
            threads: threads,
            current_thread: thread,
            sending: false,
-           pending_message: nil
+           pending_message: nil,
+           salesforce_reauth_required: socket.assigns.salesforce_reauth_required
          )}
+
+      {:error, {:reauth_required, _info}} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Reconnect Salesforce to keep CRM context in chat.")
+         |> assign(sending: false, pending_message: nil, salesforce_reauth_required: true)}
 
       {:error, reason} ->
         Logger.error("Chat message processing failed: #{inspect(reason)}")
@@ -252,8 +262,14 @@ defmodule SocialScribeWeb.ChatLive.Index do
       salesforce: socket.assigns.salesforce_credential
     }
 
-    {:ok, results} = ChatAssistant.search_contacts(query, credentials)
-    {:noreply, assign(socket, mention_search_results: results)}
+    {:ok, results, errors} = ChatAssistant.search_contacts(query, credentials)
+    salesforce_reauth_required = match?({:reauth_required, _}, errors.salesforce)
+
+    {:noreply,
+     assign(socket,
+       mention_search_results: results,
+       salesforce_reauth_required: salesforce_reauth_required
+     )}
   end
 
   # Private helpers

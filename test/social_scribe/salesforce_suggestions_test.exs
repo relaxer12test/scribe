@@ -17,10 +17,10 @@ defmodule SocialScribe.SalesforceSuggestionsTest do
       meeting = meeting_fixture()
 
       contact = %{
-        id: "003",
-        firstname: "Pat",
-        lastname: "Doe",
-        email: "pat@example.com",
+        :id => "003",
+        :firstname => "Pat",
+        :lastname => "Doe",
+        :email => "pat@example.com",
         "Phone" => "555-1234",
         "Title" => "CTO"
       }

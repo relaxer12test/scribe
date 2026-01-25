@@ -70,13 +70,14 @@ defmodule SocialScribe.ChatAssistant do
   Search contacts across connected CRMs.
 
   Returns a combined list of contacts from HubSpot and/or Salesforce,
-  each tagged with their crm_provider.
+  each tagged with their crm_provider, plus an errors map for per-CRM failures.
   """
   def search_contacts(query, credentials) do
     Logger.info("[ChatAssistant] Searching contacts for query: #{inspect(query)}")
     results = []
+    errors = %{hubspot: nil, salesforce: nil}
 
-    results =
+    {results, errors} =
       if credentials.hubspot do
         Logger.info("[ChatAssistant] Querying HubSpot for: #{inspect(query)}")
 
@@ -91,18 +92,18 @@ defmodule SocialScribe.ChatAssistant do
                 |> Map.put(:display_name, "#{c.firstname} #{c.lastname}")
               end)
 
-            results ++ tagged
+            {results ++ tagged, errors}
 
           {:error, reason} ->
             Logger.warning("[ChatAssistant] HubSpot search failed: #{inspect(reason)}")
-            results
+            {results, Map.put(errors, :hubspot, reason)}
         end
       else
         Logger.debug("[ChatAssistant] HubSpot not connected, skipping")
-        results
+        {results, errors}
       end
 
-    results =
+    {results, errors} =
       if credentials.salesforce do
         Logger.info("[ChatAssistant] Querying Salesforce for: #{inspect(query)}")
 
@@ -117,19 +118,19 @@ defmodule SocialScribe.ChatAssistant do
                 |> Map.put(:display_name, "#{c.firstname} #{c.lastname}")
               end)
 
-            results ++ tagged
+            {results ++ tagged, errors}
 
           {:error, reason} ->
             Logger.warning("[ChatAssistant] Salesforce search failed: #{inspect(reason)}")
-            results
+            {results, Map.put(errors, :salesforce, reason)}
         end
       else
         Logger.debug("[ChatAssistant] Salesforce not connected, skipping")
-        results
+        {results, errors}
       end
 
     Logger.info("[ChatAssistant] Total results: #{length(results)}")
-    {:ok, results}
+    {:ok, results, errors}
   end
 
   # Private functions
@@ -147,35 +148,48 @@ defmodule SocialScribe.ChatAssistant do
   defp format_mentions(_), do: []
 
   defp build_context(user_id, mentions, credentials) do
-    contacts = fetch_mentioned_contacts(mentions, credentials)
-    meetings = fetch_relevant_meetings(user_id, contacts)
-    {:ok, %{contacts: contacts, meetings: meetings}}
+    with {:ok, contacts} <- fetch_mentioned_contacts(mentions, credentials) do
+      meetings = fetch_relevant_meetings(user_id, contacts)
+      {:ok, %{contacts: contacts, meetings: meetings}}
+    end
   end
 
   defp fetch_mentioned_contacts(mentions, credentials) do
     mentions
-    |> Enum.map(fn mention ->
+    |> Enum.reduce_while({:ok, []}, fn mention, {:ok, acc} ->
       provider = mention[:crm_provider] || mention["crm_provider"]
       contact_id = mention[:contact_id] || mention["contact_id"]
 
       case provider do
         "hubspot" when not is_nil(credentials.hubspot) ->
           case HubspotApi.get_contact(credentials.hubspot, contact_id) do
-            {:ok, contact} -> Map.put(contact, :crm_provider, "hubspot")
-            _ -> nil
+            {:ok, contact} ->
+              {:cont, {:ok, [Map.put(contact, :crm_provider, "hubspot") | acc]}}
+
+            _ ->
+              {:cont, {:ok, acc}}
           end
 
         "salesforce" when not is_nil(credentials.salesforce) ->
           case SalesforceApi.get_contact(credentials.salesforce, contact_id) do
-            {:ok, contact} -> Map.put(contact, :crm_provider, "salesforce")
-            _ -> nil
+            {:ok, contact} ->
+              {:cont, {:ok, [Map.put(contact, :crm_provider, "salesforce") | acc]}}
+
+            {:error, {:reauth_required, _info} = reason} ->
+              {:halt, {:error, reason}}
+
+            _ ->
+              {:cont, {:ok, acc}}
           end
 
         _ ->
-          nil
+          {:cont, {:ok, acc}}
       end
     end)
-    |> Enum.reject(&is_nil/1)
+    |> case do
+      {:ok, contacts} -> {:ok, Enum.reverse(contacts)}
+      {:error, _reason} = error -> error
+    end
   end
 
   defp fetch_relevant_meetings(user_id, _contacts) do

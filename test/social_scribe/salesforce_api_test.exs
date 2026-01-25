@@ -68,7 +68,8 @@ defmodule SocialScribe.SalesforceApiTest do
           env.method == :patch &&
               env.url ==
                 "https://instance.salesforce.test/services/data/v58.0/sobjects/Contact/003" ->
-            assert env.body == %{"Phone" => "555-1234"}
+            body = if is_binary(env.body), do: Jason.decode!(env.body), else: env.body
+            assert body == %{"Phone" => "555-1234"}
             %Tesla.Env{status: 204}
 
           true ->
@@ -170,7 +171,8 @@ defmodule SocialScribe.SalesforceApiTest do
           env.method == :patch &&
               env.url ==
                 "https://instance.salesforce.test/services/data/v58.0/sobjects/Contact/003" ->
-            assert env.body == updates
+            body = if is_binary(env.body), do: Jason.decode!(env.body), else: env.body
+            assert body == updates
             %Tesla.Env{status: 204}
 
           true ->

@@ -27,7 +27,7 @@ defmodule SocialScribe.ChatAssistantTest do
         assert query == "What did we discuss?"
         assert contacts == []
         assert Enum.any?(meetings, &(&1.id == meeting.id))
-        assert history == []
+        assert history == [%{role: "user", content: "What did we discuss?"}]
 
         {:ok,
          %{
@@ -100,6 +100,28 @@ defmodule SocialScribe.ChatAssistantTest do
       assert length(thread.chat_messages) == 1
       assert hd(thread.chat_messages).role == "user"
     end
+
+    test "returns reauth_required when Salesforce contact lookup fails" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+
+      mention = %{contact_id: "003", contact_name: "Pat Doe", crm_provider: "salesforce"}
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:get_contact, fn ^credential, "003" ->
+        {:error, {:reauth_required, %{id: credential.id}}}
+      end)
+
+      assert {:error, {:reauth_required, _info}} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "Who is Pat?",
+                 [mention],
+                 %{hubspot: nil, salesforce: credential}
+               )
+    end
   end
 
   describe "search_contacts/2" do
@@ -118,11 +140,13 @@ defmodule SocialScribe.ChatAssistantTest do
         {:ok, [%{id: "sf1", firstname: "Jane", lastname: "Force", email: "jane@sf.com"}]}
       end)
 
-      assert {:ok, results} =
+      assert {:ok, results, errors} =
                ChatAssistant.search_contacts("Jane", %{hubspot: hubspot, salesforce: salesforce})
 
       assert Enum.any?(results, &(&1.id == "hs1" && &1.crm_provider == "hubspot"))
       assert Enum.any?(results, &(&1.id == "sf1" && &1.crm_provider == "salesforce"))
+      assert errors.hubspot == nil
+      assert errors.salesforce == nil
     end
   end
 end

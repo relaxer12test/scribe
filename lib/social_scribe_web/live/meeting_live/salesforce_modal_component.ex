@@ -10,6 +10,25 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
     ~H"""
     <div class="space-y-6">
+      <%= if @reauth_required do %>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="font-semibold">Reconnect Salesforce to continue</p>
+              <p class="text-sm text-amber-800">
+                We couldn't refresh your Salesforce connection. Reconnect to keep updates working.
+              </p>
+            </div>
+            <.link
+              href={~p"/auth/salesforce?prompt=consent"}
+              method="get"
+              class="inline-flex items-center justify-center rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-amber-700"
+            >
+              Reconnect Salesforce
+            </.link>
+          </div>
+        </div>
+      <% end %>
       <div>
         <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
           Update in Salesforce
@@ -87,9 +106,22 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def update(assigns, socket) do
+    reauth_required =
+      case Map.fetch(assigns, :reauth_required) do
+        {:ok, value} ->
+          value
+
+        :error ->
+          case assigns[:credential] do
+            %{reauth_required_at: %DateTime{}} -> true
+            _ -> false
+          end
+      end
+
     socket =
       socket
       |> assign(assigns)
+      |> assign(:reauth_required, reauth_required)
       |> maybe_select_all_suggestions(assigns)
       |> assign_new(:step, fn -> :search end)
       |> assign_new(:query, fn -> "" end)
@@ -114,12 +146,23 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   def handle_event("contact_search", %{"value" => query}, socket) do
     query = String.trim(query)
 
-    if String.length(query) >= 2 do
-      socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
-      send(self(), {:salesforce_search, query, socket.assigns.credential})
-      {:noreply, socket}
-    else
-      {:noreply, assign(socket, query: query, contacts: [], dropdown_open: query != "")}
+    cond do
+      socket.assigns.reauth_required ->
+        {:noreply,
+         assign(socket,
+           searching: false,
+           dropdown_open: false,
+           error: "Reconnect Salesforce to search contacts.",
+           query: query
+         )}
+
+      String.length(query) >= 2 ->
+        socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
+        send(self(), {:salesforce_search, query, socket.assigns.credential})
+        {:noreply, socket}
+
+      true ->
+        {:noreply, assign(socket, query: query, contacts: [], dropdown_open: query != "")}
     end
   end
 
@@ -135,34 +178,43 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def handle_event("toggle_contact_dropdown", _params, socket) do
-    if socket.assigns.dropdown_open do
-      {:noreply, assign(socket, dropdown_open: false)}
-    else
-      socket = assign(socket, dropdown_open: true, searching: true)
-      query = "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
-      send(self(), {:salesforce_search, query, socket.assigns.credential})
-      {:noreply, socket}
+    cond do
+      socket.assigns.reauth_required ->
+        {:noreply, assign(socket, error: "Reconnect Salesforce to search contacts.")}
+
+      socket.assigns.dropdown_open ->
+        {:noreply, assign(socket, dropdown_open: false)}
+
+      true ->
+        socket = assign(socket, dropdown_open: true, searching: true)
+        query = "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
+        send(self(), {:salesforce_search, query, socket.assigns.credential})
+        {:noreply, socket}
     end
   end
 
   @impl true
   def handle_event("select_contact", %{"id" => contact_id}, socket) do
-    contact = Enum.find(socket.assigns.contacts, &(&1.id == contact_id))
-
-    if contact do
-      socket = assign(socket,
-        loading: true,
-        selected_contact: contact,
-        error: nil,
-        dropdown_open: false,
-        query: "",
-        suggestions: []
-      )
-
-      send(self(), {:generate_salesforce_suggestions, contact, socket.assigns.meeting, socket.assigns.credential})
-      {:noreply, socket}
+    if socket.assigns.reauth_required do
+      {:noreply, assign(socket, error: "Reconnect Salesforce to load contacts.")}
     else
-      {:noreply, assign(socket, error: "Contact not found")}
+      contact = Enum.find(socket.assigns.contacts, &(&1.id == contact_id))
+
+      if contact do
+        socket = assign(socket,
+          loading: true,
+          selected_contact: contact,
+          error: nil,
+          dropdown_open: false,
+          query: "",
+          suggestions: []
+        )
+
+        send(self(), {:generate_salesforce_suggestions, contact, socket.assigns.meeting, socket.assigns.credential})
+        {:noreply, socket}
+      else
+        {:noreply, assign(socket, error: "Contact not found")}
+      end
     end
   end
 
@@ -206,17 +258,21 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def handle_event("apply_updates", %{"apply" => selected, "values" => values}, socket) do
-    socket = assign(socket, loading: true, error: nil)
+    if socket.assigns.reauth_required do
+      {:noreply, assign(socket, error: "Reconnect Salesforce to apply updates.")}
+    else
+      socket = assign(socket, loading: true, error: nil)
 
-    updates =
-      selected
-      |> Map.keys()
-      |> Enum.reduce(%{}, fn field, acc ->
-        Map.put(acc, field, Map.get(values, field, ""))
-      end)
+      updates =
+        selected
+        |> Map.keys()
+        |> Enum.reduce(%{}, fn field, acc ->
+          Map.put(acc, field, Map.get(values, field, ""))
+        end)
 
-    send(self(), {:apply_salesforce_updates, updates, socket.assigns.selected_contact, socket.assigns.credential})
-    {:noreply, socket}
+      send(self(), {:apply_salesforce_updates, updates, socket.assigns.selected_contact, socket.assigns.credential})
+      {:noreply, socket}
+    end
   end
 
   @impl true

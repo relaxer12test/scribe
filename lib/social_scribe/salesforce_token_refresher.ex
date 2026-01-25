@@ -3,6 +3,11 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   Refreshes Salesforce OAuth tokens.
   """
 
+  alias SocialScribe.Accounts
+  alias SocialScribe.Accounts.UserCredential
+
+  require Logger
+
   @token_path "/services/oauth2/token"
 
   def client do
@@ -45,24 +50,32 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   @doc """
   Refreshes the token for a Salesforce credential and updates it in the database.
   """
-  def refresh_credential(credential) do
-    alias SocialScribe.Accounts
+  def refresh_credential(%UserCredential{} = credential) do
+    cond do
+      reauth_required?(credential) ->
+        {:error, {:reauth_required, reauth_info(credential)}}
 
-    case refresh_token(credential.refresh_token) do
-      {:ok, response} ->
-        expires_in = response["expires_in"] || 3600
-        refresh_token = response["refresh_token"] || credential.refresh_token
+      missing_refresh_token?(credential) ->
+        mark_reauth_required(credential, :missing_refresh_token)
 
-        attrs = %{
-          token: response["access_token"],
-          refresh_token: refresh_token,
-          expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second)
-        }
+      true ->
+        case refresh_token(credential.refresh_token) do
+          {:ok, response} ->
+            expires_in = response["expires_in"] || 3600
+            refresh_token = response["refresh_token"] || credential.refresh_token
 
-        Accounts.update_user_credential(credential, attrs)
+            attrs = %{
+              token: response["access_token"],
+              refresh_token: refresh_token,
+              expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second),
+              reauth_required_at: nil
+            }
 
-      {:error, reason} ->
-        {:error, reason}
+            Accounts.update_user_credential(credential, attrs)
+
+          {:error, reason} ->
+            handle_refresh_error(credential, reason)
+        end
     end
   end
 
@@ -72,14 +85,71 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   """
   def ensure_valid_token(credential) do
     buffer_seconds = 300
+    expires_at = credential.expires_at || DateTime.utc_now()
 
-    if DateTime.compare(
-         credential.expires_at,
-         DateTime.add(DateTime.utc_now(), buffer_seconds, :second)
-       ) == :lt do
-      refresh_credential(credential)
-    else
-      {:ok, credential}
+    cond do
+      reauth_required?(credential) ->
+        {:error, {:reauth_required, reauth_info(credential)}}
+
+      DateTime.compare(expires_at, DateTime.add(DateTime.utc_now(), buffer_seconds, :second)) ==
+          :lt ->
+        refresh_credential(credential)
+
+      true ->
+        {:ok, credential}
     end
+  end
+
+  defp missing_refresh_token?(%UserCredential{} = credential) do
+    refresh_token = credential.refresh_token
+    is_nil(refresh_token) || refresh_token == ""
+  end
+
+  defp reauth_required?(%UserCredential{} = credential) do
+    not is_nil(credential.reauth_required_at)
+  end
+
+  defp handle_refresh_error(%UserCredential{} = credential, {status, body})
+       when status in [400, 401, 403] do
+    if reauth_error?(body) do
+      mark_reauth_required(credential, {status, body})
+    else
+      {:error, {status, body}}
+    end
+  end
+
+  defp handle_refresh_error(_credential, reason), do: {:error, reason}
+
+  defp reauth_error?(%{"error" => error}) when error in ["invalid_grant"], do: true
+
+  defp reauth_error?(%{"error_description" => description}) when is_binary(description) do
+    String.contains?(String.downcase(description), ["expired", "revoked"])
+  end
+
+  defp reauth_error?(%{"message" => message}) when is_binary(message) do
+    String.contains?(String.downcase(message), ["expired", "revoked"])
+  end
+
+  defp reauth_error?(_), do: false
+
+  defp mark_reauth_required(%UserCredential{} = credential, reason) do
+    Logger.warning("Salesforce refresh requires reauth: #{inspect(reason)}")
+
+    case Accounts.mark_user_credential_reauth_required(credential) do
+      {:ok, updated} ->
+        {:error, {:reauth_required, reauth_info(updated)}}
+
+      {:error, changeset} ->
+        Logger.error("Failed to mark Salesforce credential reauth required: #{inspect(changeset)}")
+        {:error, {:reauth_required, reauth_info(credential)}}
+    end
+  end
+
+  defp reauth_info(%UserCredential{} = credential) do
+    %{
+      id: credential.id,
+      email: credential.email,
+      uid: credential.uid
+    }
   end
 end

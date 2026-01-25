@@ -74,6 +74,7 @@ defmodule SocialScribe.AIContentGenerator do
         Return your response as a JSON array of objects. Each object should have:
         - "field": the CRM field name (use exactly: firstname, lastname, email, phone, mobilephone, company, jobtitle, address, city, state, zip, country, website, linkedin_url, twitter_handle)
         - "value": the extracted value
+        - "person": the full name of the person this update applies to, if explicitly mentioned; otherwise null
         - "context": a brief quote of where this was mentioned
         - "timestamp": the timestamp in MM:SS format where this was mentioned
 
@@ -81,8 +82,8 @@ defmodule SocialScribe.AIContentGenerator do
 
         Example response format:
         [
-          {"field": "phone", "value": "555-123-4567", "context": "John mentioned 'you can reach me at 555-123-4567'", "timestamp": "01:23"},
-          {"field": "company", "value": "Acme Corp", "context": "Sarah said she just joined Acme Corp", "timestamp": "05:47"}
+          {"field": "phone", "value": "555-123-4567", "person": "John Doe", "context": "John mentioned 'you can reach me at 555-123-4567'", "timestamp": "01:23"},
+          {"field": "company", "value": "Acme Corp", "person": "Sarah Lee", "context": "Sarah said she just joined Acme Corp", "timestamp": "05:47"}
         ]
 
         ONLY return valid JSON, no other text.
@@ -127,6 +128,7 @@ defmodule SocialScribe.AIContentGenerator do
         Return your response as a JSON array of objects. Each object should have:
         - "field": the Salesforce Contact field name (use exactly: FirstName, LastName, Email, Phone, MobilePhone, Title, MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry)
         - "value": the extracted value
+        - "person": the full name of the person this update applies to, if explicitly mentioned; otherwise null
         - "context": a brief quote of where this was mentioned
         - "timestamp": the timestamp in MM:SS format where this was mentioned
 
@@ -134,8 +136,8 @@ defmodule SocialScribe.AIContentGenerator do
 
         Example response format:
         [
-          {"field": "Phone", "value": "555-123-4567", "context": "John mentioned 'you can reach me at 555-123-4567'", "timestamp": "01:23"},
-          {"field": "Title", "value": "VP of Operations", "context": "Sarah said she is the VP of Operations", "timestamp": "05:47"}
+          {"field": "Phone", "value": "555-123-4567", "person": "John Doe", "context": "John mentioned 'you can reach me at 555-123-4567'", "timestamp": "01:23"},
+          {"field": "Title", "value": "VP of Operations", "person": "Sarah Lee", "context": "Sarah said she is the VP of Operations", "timestamp": "05:47"}
         ]
 
         ONLY return valid JSON, no other text.
@@ -172,6 +174,7 @@ defmodule SocialScribe.AIContentGenerator do
             %{
               field: s["field"],
               value: s["value"],
+              person: s["person"],
               context: s["context"],
               timestamp: s["timestamp"]
             }
@@ -417,6 +420,7 @@ defmodule SocialScribe.AIContentGenerator do
             %{
               field: s["field"],
               value: s["value"],
+              person: s["person"],
               context: s["context"],
               timestamp: s["timestamp"]
             }

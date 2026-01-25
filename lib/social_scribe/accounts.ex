@@ -335,6 +335,7 @@ defmodule SocialScribe.Accounts do
       expires_at:
         (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
           DateTime.add(DateTime.utc_now(), 3600, :second),
+      reauth_required_at: nil,
       email: auth.info.email
     }
   end
@@ -349,6 +350,7 @@ defmodule SocialScribe.Accounts do
       expires_at:
         (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
           DateTime.add(DateTime.utc_now(), 3600, :second),
+      reauth_required_at: nil,
       email: auth.info.email
     }
   end
@@ -362,6 +364,7 @@ defmodule SocialScribe.Accounts do
       expires_at:
         (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
           DateTime.add(DateTime.utc_now(), 3600, :second),
+      reauth_required_at: nil,
       email: auth.info.email
     }
   end
@@ -376,6 +379,7 @@ defmodule SocialScribe.Accounts do
       expires_at:
         (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
           DateTime.add(DateTime.utc_now(), 3600, :second),
+      reauth_required_at: nil,
       email: auth.info.email
     }
   end
@@ -394,7 +398,8 @@ defmodule SocialScribe.Accounts do
       ) do
     updates = %{
       token: token,
-      expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second)
+      expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second),
+      reauth_required_at: nil
     }
 
     updates =
@@ -408,6 +413,15 @@ defmodule SocialScribe.Accounts do
 
     credential
     |> UserCredential.changeset(updates)
+    |> Repo.update()
+  end
+
+  @doc """
+  Marks a user credential as requiring re-authentication.
+  """
+  def mark_user_credential_reauth_required(%UserCredential{} = credential) do
+    credential
+    |> UserCredential.changeset(%{reauth_required_at: DateTime.utc_now()})
     |> Repo.update()
   end
 

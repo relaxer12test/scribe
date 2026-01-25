@@ -31,7 +31,7 @@ defmodule SocialScribeWeb.ChatLiveTest do
       assert query == "Hello there"
       assert contacts == []
       assert meetings == []
-      assert history == []
+      assert history == [%{role: "user", content: "Hello there"}]
 
       {:ok, %{answer: "Hi!", sources: []}}
     end)

@@ -30,10 +30,9 @@ defmodule Ueberauth.Strategy.Salesforce do
         scope: scopes,
         redirect_uri: redirect_uri,
         code_challenge: code_challenge,
-        code_challenge_method: "S256"
+        code_challenge_method: "S256",
+        prompt: "consent"
       ]
-      |> with_optional(:prompt, conn)
-      |> with_param(:prompt, conn)
       |> with_state_param(conn)
 
     redirect!(conn, Ueberauth.Strategy.Salesforce.OAuth.authorize_url!(opts))
@@ -134,14 +133,6 @@ defmodule Ueberauth.Strategy.Salesforce do
       {:error, reason} ->
         set_errors!(conn, [error("user_info_error", reason)])
     end
-  end
-
-  defp with_param(opts, key, conn) do
-    if value = conn.params[to_string(key)], do: Keyword.put(opts, key, value), else: opts
-  end
-
-  defp with_optional(opts, key, conn) do
-    if option(conn, key), do: Keyword.put(opts, key, option(conn, key)), else: opts
   end
 
   defp option(conn, key) do

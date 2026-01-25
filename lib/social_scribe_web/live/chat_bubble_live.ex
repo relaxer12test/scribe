@@ -18,6 +18,8 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     if user do
       hubspot_credential = Accounts.get_user_hubspot_credential(user.id)
       salesforce_credential = Accounts.get_user_credential(user, "salesforce")
+      salesforce_reauth_required =
+        not is_nil(salesforce_credential) and not is_nil(salesforce_credential.reauth_required_at)
 
       socket =
         socket
@@ -38,6 +40,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         |> assign(:streaming_content, "")
         |> assign(:hubspot_credential, hubspot_credential)
         |> assign(:salesforce_credential, salesforce_credential)
+        |> assign(:salesforce_reauth_required, salesforce_reauth_required)
 
       {:ok, socket, layout: false}
     else
@@ -143,6 +146,26 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             History
           </button>
         </div>
+
+        <%= if @salesforce_reauth_required do %>
+          <div class="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-sm font-semibold">Reconnect Salesforce to keep CRM context in chat</p>
+                <p class="text-xs text-amber-800">
+                  We couldn't refresh your Salesforce connection. Reconnect to continue using CRM data.
+                </p>
+              </div>
+              <.link
+                href={~p"/auth/salesforce?prompt=consent"}
+                method="get"
+                class="inline-flex items-center justify-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-amber-700"
+              >
+                Reconnect Salesforce
+              </.link>
+            </div>
+          </div>
+        <% end %>
 
         <!-- Content Area - scrollable -->
         <div class="flex-1 overflow-y-auto min-h-0">
@@ -692,8 +715,21 @@ defmodule SocialScribeWeb.ChatBubbleLive do
            sending: false,
            streaming: false,
            streaming_content: "",
-           pending_message: nil
+           pending_message: nil,
+           salesforce_reauth_required: socket.assigns.salesforce_reauth_required
          )}
+
+      {:error, {:reauth_required, _info}} ->
+        {:noreply,
+         socket
+         |> assign(
+           sending: false,
+           streaming: false,
+           streaming_content: "",
+           pending_message: nil,
+           salesforce_reauth_required: true
+         )
+         |> put_flash(:error, "Reconnect Salesforce to keep CRM context in chat.")}
 
       {:error, reason} ->
         Logger.error("Chat message processing failed: #{inspect(reason)}")
@@ -712,8 +748,14 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       salesforce: socket.assigns.salesforce_credential
     }
 
-    {:ok, results} = ChatAssistant.search_contacts(query, credentials)
-    {:noreply, assign(socket, mention_search_results: results)}
+    {:ok, results, errors} = ChatAssistant.search_contacts(query, credentials)
+    salesforce_reauth_required = match?({:reauth_required, _}, errors.salesforce)
+
+    {:noreply,
+     assign(socket,
+       mention_search_results: results,
+       salesforce_reauth_required: salesforce_reauth_required
+     )}
   end
 
   @impl true

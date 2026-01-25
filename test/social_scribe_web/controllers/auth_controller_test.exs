@@ -1,8 +1,6 @@
 defmodule SocialScribeWeb.AuthControllerTest do
   use SocialScribeWeb.ConnCase, async: true
 
-  import SocialScribe.AccountsFixtures
-
   alias SocialScribe.Accounts
   alias SocialScribeWeb.AuthController
 
@@ -15,12 +13,14 @@ defmodule SocialScribeWeb.AuthControllerTest do
 
     conn =
       conn
+      |> fetch_flash()
       |> assign(:ueberauth_auth, auth)
       |> assign(:current_user, user)
 
     conn = AuthController.callback(conn, %{"provider" => "salesforce"})
 
-    assert get_flash(conn, :info) =~ "Salesforce account connected successfully!"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
+             "Salesforce account connected successfully!"
     assert redirected_to(conn) == ~p"/dashboard/settings"
 
     credential = Accounts.get_user_credential(user, "salesforce", auth.uid)
@@ -33,12 +33,14 @@ defmodule SocialScribeWeb.AuthControllerTest do
 
     conn =
       conn
+      |> fetch_flash()
       |> assign(:ueberauth_auth, auth)
       |> assign(:current_user, user)
 
     conn = AuthController.callback(conn, %{"provider" => "salesforce"})
 
-    assert get_flash(conn, :error) =~ "Could not connect Salesforce account."
+    assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+             "Could not connect Salesforce account."
     assert redirected_to(conn) == ~p"/dashboard/settings"
 
     refute Accounts.get_user_credential(user, "salesforce", auth.uid)

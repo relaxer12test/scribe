@@ -366,6 +366,13 @@ defmodule SocialScribeWeb.ModalComponents do
 
       <div class="mt-2 pl-8">
         <div class="text-sm font-medium text-slate-700 leading-5 ml-1">{@suggestion.label}</div>
+        <div
+          :if={@suggestion[:person] && @suggestion[:person] != ""}
+          class="mt-1 text-xs text-slate-500 ml-1"
+        >
+          Suggested person:
+          <span class="font-medium text-slate-700">{@suggestion[:person]}</span>
+        </div>
 
         <div class="relative mt-2">
           <input

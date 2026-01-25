@@ -422,6 +422,10 @@ defmodule SocialScribe.SalesforceApi do
             success
         end
 
+      {:error, {:reauth_required, _info} = error} ->
+        Logger.warning("Salesforce refresh requires reauth.")
+        {:error, error}
+
       {:error, refresh_error} ->
         Logger.error("Failed to refresh Salesforce token: #{inspect(refresh_error)}")
         {:error, {:token_refresh_failed, refresh_error}}

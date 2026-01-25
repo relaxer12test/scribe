@@ -155,14 +155,25 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
           id: "salesforce-modal",
           contacts: contacts,
-          searching: false
+          searching: false,
+          reauth_required: false
+        )
+
+      {:error, {:reauth_required, _info}} ->
+        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+          id: "salesforce-modal",
+          contacts: [],
+          searching: false,
+          reauth_required: true,
+          error: "Reconnect Salesforce to search contacts."
         )
 
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
           id: "salesforce-modal",
           error: "Failed to search contacts: #{inspect(reason)}",
-          searching: false
+          searching: false,
+          reauth_required: false
         )
     end
 
@@ -178,14 +189,24 @@ defmodule SocialScribeWeb.MeetingLive.Show do
           step: :suggestions,
           selected_contact: updated_contact,
           suggestions: suggestions,
-          loading: false
+          loading: false,
+          reauth_required: false
+        )
+
+      {:error, {:reauth_required, _info}} ->
+        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+          id: "salesforce-modal",
+          error: "Reconnect Salesforce to generate suggestions.",
+          loading: false,
+          reauth_required: true
         )
 
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
           id: "salesforce-modal",
           error: "Failed to generate suggestions: #{inspect(reason)}",
-          loading: false
+          loading: false,
+          reauth_required: false
         )
     end
 
@@ -203,11 +224,22 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
         {:noreply, socket}
 
+      {:error, {:reauth_required, _info}} ->
+        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+          id: "salesforce-modal",
+          error: "Reconnect Salesforce to apply updates.",
+          loading: false,
+          reauth_required: true
+        )
+
+        {:noreply, socket}
+
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
           id: "salesforce-modal",
           error: "Failed to update contact: #{inspect(reason)}",
-          loading: false
+          loading: false,
+          reauth_required: false
         )
 
         {:noreply, socket}

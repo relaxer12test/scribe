@@ -76,6 +76,37 @@ defmodule SocialScribe.SalesforceTokenRefresherTest do
       assert updated.token == "new-token"
       assert updated.refresh_token == "new-refresh"
     end
+
+    test "returns reauth_required when credential is already flagged" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          reauth_required_at: DateTime.utc_now()
+        })
+
+      assert {:error, {:reauth_required, info}} =
+               SalesforceTokenRefresher.ensure_valid_token(credential)
+
+      assert info.id == credential.id
+    end
+
+    test "returns reauth_required when refresh token is missing" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          refresh_token: nil,
+          expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
+        })
+
+      assert {:error, {:reauth_required, info}} =
+               SalesforceTokenRefresher.ensure_valid_token(credential)
+
+      assert info.id == credential.id
+    end
   end
 
   describe "refresh_token/1" do
@@ -111,6 +142,29 @@ defmodule SocialScribe.SalesforceTokenRefresherTest do
 
       assert updated.id == credential.id
       assert updated.token == "new-token"
+      assert is_nil(updated.reauth_required_at)
+    end
+
+    test "marks credential when refresh token is invalid" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          token: "old-token",
+          refresh_token: "bad-refresh",
+          expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
+        })
+
+      Tesla.Mock.mock(fn env ->
+        assert env.method == :post
+        %Tesla.Env{status: 400, body: %{"error" => "invalid_grant"}}
+      end)
+
+      assert {:error, {:reauth_required, info}} =
+               SalesforceTokenRefresher.refresh_credential(credential)
+
+      assert info.id == credential.id
     end
   end
 end

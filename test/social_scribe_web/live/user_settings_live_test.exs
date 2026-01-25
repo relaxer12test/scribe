@@ -75,7 +75,21 @@ defmodule SocialScribeWeb.UserSettingsLiveTest do
       |> render_click()
 
       assert render(view) =~ "Salesforce account disconnected successfully."
-      assert render(view) =~ "You haven't connected any Salesforce accounts yet."
+      assert has_element?(view, "a", "Connect Salesforce")
+      refute SocialScribe.Accounts.get_user_credential(user, "salesforce", credential.uid)
+    end
+
+    test "shows reconnect banner when Salesforce token needs reauth", %{conn: conn, user: user} do
+      _credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          reauth_required_at: DateTime.utc_now()
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard/settings")
+
+      assert has_element?(view, "p", "Reconnect Salesforce to continue")
+      assert has_element?(view, "a", "Reconnect Salesforce")
     end
   end
 end
