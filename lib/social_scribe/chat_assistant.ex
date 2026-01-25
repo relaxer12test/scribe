@@ -6,6 +6,7 @@ defmodule SocialScribe.ChatAssistant do
   alias SocialScribe.Chat
   alias SocialScribe.Meetings
   alias SocialScribe.AIContentGeneratorApi
+  alias SocialScribe.CrmUpdates
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
 
@@ -26,6 +27,7 @@ defmodule SocialScribe.ChatAssistant do
              content,
              context.contacts,
              context.meetings,
+             context.updates,
              history
            ),
          {:ok, assistant_message} <-
@@ -53,6 +55,7 @@ defmodule SocialScribe.ChatAssistant do
              content,
              context.contacts,
              context.meetings,
+             context.updates,
              history,
              stream_callback
            ),
@@ -150,7 +153,8 @@ defmodule SocialScribe.ChatAssistant do
   defp build_context(user_id, mentions, credentials) do
     with {:ok, contacts} <- fetch_mentioned_contacts(mentions, credentials) do
       meetings = fetch_relevant_meetings(user_id, contacts)
-      {:ok, %{contacts: contacts, meetings: meetings}}
+      updates = fetch_relevant_updates(meetings, contacts)
+      {:ok, %{contacts: contacts, meetings: meetings, updates: updates}}
     end
   end
 
@@ -192,16 +196,21 @@ defmodule SocialScribe.ChatAssistant do
     end
   end
 
-  defp fetch_relevant_meetings(user_id, _contacts) do
-    # Get recent meetings for the user
-    # If contacts are mentioned, we could filter by participant names
-    # For now, get the most recent meetings with transcripts
-    meetings = Meetings.list_user_meetings(%{id: user_id})
+  defp fetch_relevant_meetings(user_id, contacts) do
+    meetings =
+      Meetings.list_user_meetings(%{id: user_id})
+      |> Enum.filter(&meeting_has_transcript?/1)
 
-    # Filter to meetings that have transcripts and limit to recent ones
-    meetings
-    |> Enum.filter(fn m -> m.meeting_transcript != nil end)
-    |> Enum.take(5)
+    tokens = contact_match_tokens(contacts)
+
+    meetings =
+      if Enum.empty?(tokens) do
+        meetings
+      else
+        Enum.filter(meetings, &meeting_mentions_tokens?(&1, tokens))
+      end
+
+    Enum.take(meetings, 5)
   end
 
   defp get_conversation_history(thread_id, user_id) do
@@ -217,4 +226,98 @@ defmodule SocialScribe.ChatAssistant do
         end)
     end
   end
+
+  defp fetch_relevant_updates(meetings, contacts) do
+    meeting_ids = Enum.map(meetings, & &1.id)
+
+    meeting_ids
+    |> CrmUpdates.list_updates_for_meetings()
+    |> filter_updates_for_contacts(contacts)
+  end
+
+  defp filter_updates_for_contacts(updates, []), do: updates
+
+  defp filter_updates_for_contacts(updates, contacts) do
+    allowed =
+      contacts
+      |> Enum.map(&contact_key/1)
+      |> MapSet.new()
+
+    Enum.filter(updates, fn update ->
+      MapSet.member?(allowed, {update.crm_provider, update.contact_id})
+    end)
+  end
+
+  defp contact_key(contact) do
+    provider = contact[:crm_provider] || contact["crm_provider"]
+    id = contact[:id] || contact["id"] || contact[:contact_id] || contact["contact_id"]
+    {provider, id && to_string(id)}
+  end
+
+  defp contact_match_tokens([]), do: []
+
+  defp contact_match_tokens(contacts) do
+    contacts
+    |> Enum.flat_map(&contact_tokens/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&(&1 != ""))
+    |> Enum.uniq()
+  end
+
+  defp contact_tokens(contact) do
+    firstname = contact[:firstname] || contact["firstname"]
+    lastname = contact[:lastname] || contact["lastname"]
+    display_name = contact[:display_name] || contact["display_name"]
+    email = contact[:email] || contact["email"]
+
+    full_name =
+      cond do
+        present?(display_name) -> display_name
+        present?(firstname) or present?(lastname) -> String.trim("#{firstname || ""} #{lastname || ""}")
+        true -> nil
+      end
+
+    [full_name, email, firstname, lastname]
+    |> Enum.filter(&present?/1)
+  end
+
+  defp meeting_has_transcript?(%{meeting_transcript: %{content: %{"data" => data}}})
+       when is_list(data),
+       do: data != []
+
+  defp meeting_has_transcript?(%{meeting_transcript: %{content: content}}) when is_binary(content),
+    do: String.trim(content) != ""
+
+  defp meeting_has_transcript?(_), do: false
+
+  defp meeting_mentions_tokens?(meeting, tokens) do
+    participant_match? =
+      (meeting.meeting_participants || [])
+      |> Enum.map(&String.downcase(&1.name || ""))
+      |> Enum.any?(fn name -> Enum.any?(tokens, &String.contains?(name, &1)) end)
+
+    participant_match? || transcript_mentions_tokens?(meeting.meeting_transcript, tokens)
+  end
+
+  defp transcript_mentions_tokens?(%{content: %{"data" => data}}, tokens) when is_list(data) do
+    Enum.any?(data, &segment_mentions_tokens?(&1, tokens))
+  end
+
+  defp transcript_mentions_tokens?(%{content: data}, tokens) when is_list(data) do
+    Enum.any?(data, &segment_mentions_tokens?(&1, tokens))
+  end
+
+  defp transcript_mentions_tokens?(_transcript, _tokens), do: false
+
+  defp segment_mentions_tokens?(segment, tokens) do
+    speaker = Map.get(segment, "speaker", "")
+    words = Map.get(segment, "words", [])
+    text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
+    haystack = String.downcase("#{speaker} #{text}")
+    Enum.any?(tokens, &String.contains?(haystack, &1))
+  end
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value), do: not is_nil(value)
 end

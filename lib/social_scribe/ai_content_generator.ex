@@ -193,8 +193,15 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   @impl SocialScribe.AIContentGeneratorApi
-  def generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history) do
-    prompt = build_chat_prompt(user_query, mentioned_contacts, meeting_context, conversation_history)
+  def generate_chat_response(
+        user_query,
+        mentioned_contacts,
+        meeting_context,
+        crm_updates,
+        conversation_history
+      ) do
+    prompt =
+      build_chat_prompt(user_query, mentioned_contacts, meeting_context, crm_updates, conversation_history)
 
     case call_gemini(prompt) do
       {:ok, response} ->
@@ -206,8 +213,22 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   @impl SocialScribe.AIContentGeneratorApi
-  def generate_chat_response_stream(user_query, mentioned_contacts, meeting_context, conversation_history, callback) do
-    prompt = build_chat_prompt_simple(user_query, mentioned_contacts, meeting_context, conversation_history)
+  def generate_chat_response_stream(
+        user_query,
+        mentioned_contacts,
+        meeting_context,
+        crm_updates,
+        conversation_history,
+        callback
+      ) do
+    prompt =
+      build_chat_prompt_simple(
+        user_query,
+        mentioned_contacts,
+        meeting_context,
+        crm_updates,
+        conversation_history
+      )
 
     case call_gemini(prompt) do
       {:ok, response} ->
@@ -220,7 +241,7 @@ defmodule SocialScribe.AIContentGenerator do
     end
   end
 
-  defp build_chat_prompt_simple(user_query, contacts, meetings, history) do
+  defp build_chat_prompt_simple(user_query, contacts, meetings, crm_updates, history) do
     """
     You are an AI assistant that answers questions about CRM contacts and meeting data.
     You help users understand their meetings and contact information from their CRM (HubSpot or Salesforce).
@@ -228,8 +249,11 @@ defmodule SocialScribe.AIContentGenerator do
     ## Contact Information
     #{format_contacts_for_prompt(contacts)}
 
+    ## CRM Updates
+    #{format_updates_for_prompt(crm_updates)}
+
     ## Meeting Context
-    #{format_meetings_for_prompt(meetings)}
+    #{format_meetings_for_prompt(meetings, contacts)}
 
     ## Conversation History
     #{format_history_for_prompt(history)}
@@ -239,6 +263,7 @@ defmodule SocialScribe.AIContentGenerator do
 
     Instructions:
     - Answer the user's question based on the contact information and meeting context provided
+    - "Action taken" means a CRM update was applied from a meeting suggestion; use CRM Updates to confirm
     - Be specific and reference the actual data when possible
     - If you reference information from a meeting, mention the meeting title
     - If you don't have enough information to answer, say so clearly
@@ -257,7 +282,7 @@ defmodule SocialScribe.AIContentGenerator do
     end)
   end
 
-  defp build_chat_prompt(user_query, contacts, meetings, history) do
+  defp build_chat_prompt(user_query, contacts, meetings, crm_updates, history) do
     """
     You are an AI assistant that answers questions about CRM contacts and meeting data.
     You help users understand their meetings and contact information from their CRM (HubSpot or Salesforce).
@@ -265,8 +290,11 @@ defmodule SocialScribe.AIContentGenerator do
     ## Contact Information
     #{format_contacts_for_prompt(contacts)}
 
+    ## CRM Updates
+    #{format_updates_for_prompt(crm_updates)}
+
     ## Meeting Context
-    #{format_meetings_for_prompt(meetings)}
+    #{format_meetings_for_prompt(meetings, contacts)}
 
     ## Conversation History
     #{format_history_for_prompt(history)}
@@ -276,6 +304,7 @@ defmodule SocialScribe.AIContentGenerator do
 
     Instructions:
     - Answer the user's question based on the contact information and meeting context provided
+    - "Action taken" means a CRM update was applied from a meeting suggestion; use CRM Updates to confirm
     - Be specific and reference the actual data when possible
     - If you reference information from a meeting, include the meeting title and timestamp in your response
     - If you don't have enough information to answer, say so clearly
@@ -311,16 +340,60 @@ defmodule SocialScribe.AIContentGenerator do
     |> Enum.join("\n")
   end
 
-  defp format_meetings_for_prompt([]), do: "No meeting context available."
+  defp format_updates_for_prompt([]), do: "No CRM updates have been applied from meetings."
 
-  defp format_meetings_for_prompt(meetings) do
+  defp format_updates_for_prompt(updates) do
+    updates
+    |> Enum.take(10)
+    |> Enum.map(fn update ->
+      meeting = update.meeting || %{}
+      meeting_title = Map.get(meeting, :title) || "Unknown meeting"
+      meeting_id = update.meeting_id || Map.get(meeting, :id)
+      contact = update.contact_name || update.contact_id || "Unknown contact"
+      applied_at = format_datetime(update.applied_at)
+      updates_text = format_update_fields(update.updates)
+
+      """
+      - Meeting: #{meeting_title} (ID: #{meeting_id})
+        CRM: #{String.capitalize(update.crm_provider)} Contact: #{contact}
+        Applied at: #{applied_at}
+        Updates: #{updates_text}
+      """
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_update_fields(updates) when is_map(updates) do
+    updates
+    |> Enum.map(fn {field, value} ->
+      "#{field}: #{format_update_value(value)}"
+    end)
+    |> Enum.join("; ")
+  end
+
+  defp format_update_fields(_), do: "No updates recorded"
+
+  defp format_update_value(value) when is_binary(value), do: value
+  defp format_update_value(nil), do: "nil"
+  defp format_update_value(value), do: to_string(value)
+
+  defp format_datetime(%DateTime{} = datetime),
+    do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M UTC")
+
+  defp format_datetime(_), do: "unknown time"
+
+  defp format_meetings_for_prompt([], _contacts), do: "No meeting context available."
+
+  defp format_meetings_for_prompt(meetings, contacts) do
+    tokens = contact_match_tokens(contacts)
+
     meetings
     |> Enum.take(5)
     |> Enum.map(fn meeting ->
       transcript =
         case meeting.meeting_transcript do
           nil -> "No transcript available"
-          t -> format_transcript_excerpt(t.content)
+          t -> format_transcript_excerpt(t.content, tokens)
         end
 
       """
@@ -336,25 +409,90 @@ defmodule SocialScribe.AIContentGenerator do
     |> Enum.join("\n")
   end
 
-  defp format_transcript_excerpt(nil), do: "No transcript"
+  defp format_transcript_excerpt(nil, _tokens), do: "No transcript"
 
-  defp format_transcript_excerpt(content) when is_list(content) do
-    content
-    |> Enum.take(20)
+  defp format_transcript_excerpt(%{"data" => data}, tokens) when is_list(data) do
+    format_transcript_excerpt(data, tokens)
+  end
+
+  defp format_transcript_excerpt(content, tokens) when is_list(content) do
+    segments =
+      if Enum.empty?(tokens) do
+        Enum.take(content, 20)
+      else
+        matched = Enum.filter(content, &segment_mentions_tokens?(&1, tokens))
+        if matched == [], do: Enum.take(content, 20), else: Enum.take(matched, 20)
+      end
+
+    segments
     |> Enum.map(fn segment ->
       speaker = Map.get(segment, "speaker", "Unknown")
       words = Map.get(segment, "words", [])
       text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
-      "[#{speaker}]: #{text}"
+      timestamp = format_timestamp(List.first(words))
+      "[#{timestamp}] #{speaker}: #{text}"
     end)
     |> Enum.join("\n")
   end
 
-  defp format_transcript_excerpt(content) when is_binary(content) do
+  defp format_transcript_excerpt(content, _tokens) when is_binary(content) do
     content |> String.slice(0, 2000)
   end
 
-  defp format_transcript_excerpt(_), do: "No transcript"
+  defp format_transcript_excerpt(_content, _tokens), do: "No transcript"
+
+  defp contact_match_tokens([]), do: []
+
+  defp contact_match_tokens(contacts) do
+    contacts
+    |> Enum.flat_map(&contact_tokens/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&(&1 != ""))
+    |> Enum.uniq()
+  end
+
+  defp contact_tokens(contact) do
+    firstname = contact[:firstname] || contact["firstname"]
+    lastname = contact[:lastname] || contact["lastname"]
+    display_name = contact[:display_name] || contact["display_name"]
+    email = contact[:email] || contact["email"]
+
+    full_name =
+      cond do
+        present?(display_name) -> display_name
+        present?(firstname) or present?(lastname) -> String.trim("#{firstname || ""} #{lastname || ""}")
+        true -> nil
+      end
+
+    [full_name, email, firstname, lastname]
+    |> Enum.filter(&present?/1)
+  end
+
+  defp segment_mentions_tokens?(segment, tokens) do
+    speaker = Map.get(segment, "speaker", "")
+    words = Map.get(segment, "words", [])
+    text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
+    haystack = String.downcase("#{speaker} #{text}")
+    Enum.any?(tokens, &String.contains?(haystack, &1))
+  end
+
+  defp format_timestamp(nil), do: "00:00"
+
+  defp format_timestamp(word) do
+    seconds = extract_seconds(Map.get(word, "start_timestamp"))
+    total_seconds = trunc(seconds)
+    minutes = div(total_seconds, 60)
+    secs = rem(total_seconds, 60)
+    "#{String.pad_leading(Integer.to_string(minutes), 2, "0")}:#{String.pad_leading(Integer.to_string(secs), 2, "0")}"
+  end
+
+  defp extract_seconds(%{"relative" => relative}) when is_number(relative), do: relative
+  defp extract_seconds(seconds) when is_number(seconds), do: seconds
+  defp extract_seconds(_), do: 0
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value), do: not is_nil(value)
 
   defp format_participants(nil), do: "Unknown"
   defp format_participants([]), do: "Unknown"

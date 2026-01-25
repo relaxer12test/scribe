@@ -11,17 +11,19 @@ defmodule SocialScribe.AIContentGeneratorApi do
               user_query :: String.t(),
               mentioned_contacts :: list(map()),
               meeting_context :: list(map()),
+              crm_updates :: list(map()),
               conversation_history :: list(map())
             ) :: {:ok, map()} | {:error, any()}
   @callback generate_chat_response_stream(
               user_query :: String.t(),
               mentioned_contacts :: list(map()),
               meeting_context :: list(map()),
+              crm_updates :: list(map()),
               conversation_history :: list(map()),
               callback :: (String.t() -> any())
             ) :: {:ok, map()} | {:error, any()}
 
-  @optional_callbacks [generate_chat_response_stream: 5]
+  @optional_callbacks [generate_chat_response_stream: 6]
 
   def generate_follow_up_email(meeting) do
     impl().generate_follow_up_email(meeting)
@@ -39,12 +41,32 @@ defmodule SocialScribe.AIContentGeneratorApi do
     impl().generate_salesforce_suggestions(meeting)
   end
 
-  def generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history) do
-    impl().generate_chat_response(user_query, mentioned_contacts, meeting_context, conversation_history)
+  def generate_chat_response(user_query, mentioned_contacts, meeting_context, crm_updates, conversation_history) do
+    impl().generate_chat_response(
+      user_query,
+      mentioned_contacts,
+      meeting_context,
+      crm_updates,
+      conversation_history
+    )
   end
 
-  def generate_chat_response_stream(user_query, mentioned_contacts, meeting_context, conversation_history, callback) do
-    impl().generate_chat_response_stream(user_query, mentioned_contacts, meeting_context, conversation_history, callback)
+  def generate_chat_response_stream(
+        user_query,
+        mentioned_contacts,
+        meeting_context,
+        crm_updates,
+        conversation_history,
+        callback
+      ) do
+    impl().generate_chat_response_stream(
+      user_query,
+      mentioned_contacts,
+      meeting_context,
+      crm_updates,
+      conversation_history,
+      callback
+    )
   end
 
   defp impl do

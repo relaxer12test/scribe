@@ -27,10 +27,11 @@ defmodule SocialScribeWeb.ChatLiveTest do
 
   test "creates a thread and renders assistant response", %{conn: conn, user: user} do
     SocialScribe.AIContentGeneratorMock
-    |> expect(:generate_chat_response, fn query, contacts, meetings, history ->
+    |> expect(:generate_chat_response, fn query, contacts, meetings, crm_updates, history ->
       assert query == "Hello there"
       assert contacts == []
       assert meetings == []
+      assert crm_updates == []
       assert history == [%{role: "user", content: "Hello there"}]
 
       {:ok, %{answer: "Hi!", sources: []}}

@@ -6,6 +6,7 @@ defmodule SocialScribe.ChatAssistantTest do
   import SocialScribe.AccountsFixtures
   import SocialScribe.CalendarFixtures
   import SocialScribe.ChatFixtures
+  import SocialScribe.CrmUpdatesFixtures
   import SocialScribe.MeetingsFixtures
 
   alias SocialScribe.Chat
@@ -20,13 +21,16 @@ defmodule SocialScribe.ChatAssistantTest do
 
       calendar_event = calendar_event_fixture(%{user_id: user.id})
       meeting = meeting_fixture(%{calendar_event_id: calendar_event.id})
-      meeting_transcript_fixture(%{meeting_id: meeting.id, content: %{"data" => []}})
+      transcript_data = [%{"speaker" => "Alex", "words" => [%{"text" => "Intro", "start_timestamp" => 1.0}]}]
+      meeting_transcript_fixture(%{meeting_id: meeting.id, content: %{"data" => transcript_data}})
+      crm_contact_update_fixture(%{meeting_id: meeting.id, crm_provider: "hubspot", contact_id: "hs1"})
 
       SocialScribe.AIContentGeneratorMock
-      |> expect(:generate_chat_response, fn query, contacts, meetings, history ->
+      |> expect(:generate_chat_response, fn query, contacts, meetings, crm_updates, history ->
         assert query == "What did we discuss?"
         assert contacts == []
         assert Enum.any?(meetings, &(&1.id == meeting.id))
+        assert Enum.any?(crm_updates, &(&1.meeting_id == meeting.id))
         assert history == [%{role: "user", content: "What did we discuss?"}]
 
         {:ok,
@@ -63,7 +67,7 @@ defmodule SocialScribe.ChatAssistantTest do
       end)
 
       SocialScribe.AIContentGeneratorMock
-      |> expect(:generate_chat_response, fn _query, contacts, _meetings, _history ->
+      |> expect(:generate_chat_response, fn _query, contacts, _meetings, _crm_updates, _history ->
         assert Enum.any?(contacts, &(&1.id == "003" && &1.crm_provider == "salesforce"))
         {:ok, %{answer: "Pat is VP.", sources: []}}
       end)
@@ -78,12 +82,61 @@ defmodule SocialScribe.ChatAssistantTest do
                )
     end
 
+    test "filters meetings to those mentioning the contact" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+
+      mention = %{contact_id: "hs1", contact_name: "Pat Doe", crm_provider: "hubspot"}
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn ^credential, "hs1" ->
+        {:ok, %{id: "hs1", firstname: "Pat", lastname: "Doe", email: "pat@example.com"}}
+      end)
+
+      calendar_event_1 = calendar_event_fixture(%{user_id: user.id})
+      meeting_1 = meeting_fixture(%{calendar_event_id: calendar_event_1.id})
+      meeting_participant_fixture(%{meeting_id: meeting_1.id, name: "Pat Doe"})
+
+      transcript_1 =
+        %{"data" => [%{"speaker" => "Pat Doe", "words" => [%{"text" => "Update", "start_timestamp" => 2.0}]}]}
+
+      meeting_transcript_fixture(%{meeting_id: meeting_1.id, content: transcript_1})
+
+      calendar_event_2 = calendar_event_fixture(%{user_id: user.id})
+      meeting_2 = meeting_fixture(%{calendar_event_id: calendar_event_2.id})
+      meeting_participant_fixture(%{meeting_id: meeting_2.id, name: "Other Person"})
+
+      transcript_2 =
+        %{
+          "data" => [%{"speaker" => "Other Person", "words" => [%{"text" => "Hello", "start_timestamp" => 3.0}]}]
+        }
+
+      meeting_transcript_fixture(%{meeting_id: meeting_2.id, content: transcript_2})
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response, fn _query, _contacts, meetings, _crm_updates, _history ->
+        assert Enum.any?(meetings, &(&1.id == meeting_1.id))
+        refute Enum.any?(meetings, &(&1.id == meeting_2.id))
+        {:ok, %{answer: "Found meetings.", sources: []}}
+      end)
+
+      assert {:ok, _result} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "What did Pat say?",
+                 [mention],
+                 %{hubspot: credential, salesforce: nil}
+               )
+    end
+
     test "returns error when AI generation fails and keeps the user message" do
       user = user_fixture()
       thread = chat_thread_fixture(%{user_id: user.id})
 
       SocialScribe.AIContentGeneratorMock
-      |> expect(:generate_chat_response, fn _query, _contacts, _meetings, _history ->
+      |> expect(:generate_chat_response, fn _query, _contacts, _meetings, _crm_updates, _history ->
         {:error, :timeout}
       end)
 

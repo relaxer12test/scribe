@@ -8,6 +8,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   alias SocialScribe.Meetings
   alias SocialScribe.Automations
   alias SocialScribe.Accounts
+  alias SocialScribe.CrmUpdates
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.HubspotSuggestions
   alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
@@ -131,6 +132,8 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def handle_info({:apply_hubspot_updates, updates, contact, credential}, socket) do
     case HubspotApi.update_contact(credential, contact.id, updates) do
       {:ok, _updated_contact} ->
+        record_crm_update(socket, "hubspot", contact, updates)
+
         socket =
           socket
           |> put_flash(:info, "Successfully updated #{map_size(updates)} field(s) in HubSpot")
@@ -217,6 +220,8 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def handle_info({:apply_salesforce_updates, updates, contact, credential}, socket) do
     case SalesforceApi.update_contact(credential, contact.id, updates) do
       {:ok, _updated_contact} ->
+        record_crm_update(socket, "salesforce", contact, updates)
+
         socket =
           socket
           |> put_flash(:info, "Successfully updated #{map_size(updates)} field(s) in Salesforce")
@@ -249,6 +254,45 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   defp normalize_contact(contact) do
     # Contact is already formatted with atom keys from HubspotApi.format_contact
     contact
+  end
+
+  defp record_crm_update(socket, provider, contact, updates) when map_size(updates) > 0 do
+    contact_id = Map.get(contact, :id) || Map.get(contact, "id")
+
+    if contact_id do
+      CrmUpdates.create_contact_update(%{
+        meeting_id: socket.assigns.meeting.id,
+        crm_provider: provider,
+        contact_id: to_string(contact_id),
+        contact_name: contact_display_name(contact),
+        updates: updates,
+        status: "applied",
+        applied_at: DateTime.utc_now()
+      })
+    end
+  end
+
+  defp record_crm_update(_socket, _provider, _contact, _updates), do: :ok
+
+  defp contact_display_name(contact) do
+    display_name = Map.get(contact, :display_name) || Map.get(contact, "display_name")
+    firstname = Map.get(contact, :firstname) || Map.get(contact, "firstname")
+    lastname = Map.get(contact, :lastname) || Map.get(contact, "lastname")
+    email = Map.get(contact, :email) || Map.get(contact, "email")
+
+    cond do
+      is_binary(display_name) and String.trim(display_name) != "" ->
+        String.trim(display_name)
+
+      is_binary(firstname) or is_binary(lastname) ->
+        String.trim("#{firstname || ""} #{lastname || ""}")
+
+      is_binary(email) ->
+        email
+
+      true ->
+        nil
+    end
   end
 
   defp format_duration(nil), do: "N/A"
