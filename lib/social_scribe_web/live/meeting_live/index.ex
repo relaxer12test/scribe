@@ -3,7 +3,6 @@ defmodule SocialScribeWeb.MeetingLive.Index do
 
   import SocialScribeWeb.PlatformLogo
 
-  alias SocialScribe.Bots
   alias SocialScribe.Meetings
 
   @impl true
@@ -19,33 +18,8 @@ defmodule SocialScribeWeb.MeetingLive.Index do
   end
 
   @impl true
-  def handle_event("refresh_bot", %{"id" => bot_id}, socket) do
-    socket =
-      case Integer.parse(bot_id) do
-        {parsed_id, ""} ->
-          case Bots.refresh_bot_and_meeting(socket.assigns.current_user, parsed_id) do
-            {:ok, :meeting_created} ->
-              put_flash(socket, :info, "Meeting imported. Transcript will appear once ready.")
-
-            {:ok, :pending} ->
-              put_flash(socket, :info, "Transcript not ready yet. Try again soon.")
-
-            {:ok, :already_processed} ->
-              put_flash(socket, :info, "Meeting is already processed.")
-
-            {:error, :not_found} ->
-              put_flash(socket, :error, "Meeting bot not found.")
-
-            {:error, _reason} ->
-              put_flash(socket, :error, "Failed to refresh meeting. Please try again.")
-          end
-
-        _ ->
-          put_flash(socket, :error, "Invalid meeting bot id.")
-      end
-
+  def handle_event("refresh", _params, socket) do
     meeting_items = Meetings.list_user_meeting_items(socket.assigns.current_user)
-
     {:noreply, assign(socket, :meeting_items, meeting_items)}
   end
 
