@@ -21,7 +21,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
       |> assign(:current_thread, nil)
       |> assign(:messages, %{})
       |> assign(:active_tab, :chat)
-      |> assign(:expanded, true)
+      |> assign(:chat_open, false)
       |> assign(:input_value, "")
       |> assign(:mentions, [])
       |> assign(:mention_search_results, [])
@@ -40,7 +40,10 @@ defmodule SocialScribeWeb.ChatLive.Index do
 
     if thread do
       grouped = Chat.get_messages_grouped_by_date(thread.id)
-      {:noreply, assign(socket, current_thread: thread, messages: grouped, active_tab: :chat)}
+      {:noreply,
+       socket
+       |> assign(current_thread: thread, messages: grouped, active_tab: :chat, chat_open: true)
+       |> push_event("focus_chat_input", %{})}
     else
       {:noreply, push_navigate(socket, to: ~p"/dashboard/chat")}
     end
@@ -52,13 +55,29 @@ defmodule SocialScribeWeb.ChatLive.Index do
   end
 
   @impl true
-  def handle_event("toggle_expand", _params, socket) do
-    {:noreply, assign(socket, expanded: !socket.assigns.expanded)}
+  def handle_event("open_chat", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(chat_open: true, active_tab: :chat)
+     |> push_event("focus_chat_input", %{})}
+  end
+
+  @impl true
+  def handle_event("close_chat", _params, socket) do
+    {:noreply, assign(socket, chat_open: false)}
   end
 
   @impl true
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, active_tab: String.to_existing_atom(tab))}
+  end
+
+  @impl true
+  def handle_event("seed_prompt", %{"prompt" => prompt}, socket) do
+    {:noreply,
+     socket
+     |> assign(input_value: prompt, chat_open: true, active_tab: :chat)
+     |> push_event("update_chat_input", %{value: prompt})}
   end
 
   @impl true

@@ -3,14 +3,14 @@
   <div class="bg-white rounded-t-xl border border-b-0 border-slate-200 px-5 py-4 flex items-center justify-between shadow-sm">
     <h1 class="text-xl font-semibold text-slate-900">Ask Anything</h1>
     <button
-      phx-click="toggle_expand"
+      phx-click={if @chat_open, do: "close_chat", else: "open_chat"}
       class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
     >
-      <.icon name={if @expanded, do: "hero-chevron-up", else: "hero-chevron-down"} class="h-5 w-5" />
+      <.icon name={if @chat_open, do: "hero-chevron-up", else: "hero-chevron-down"} class="h-5 w-5" />
     </button>
   </div>
 
-  <div :if={@expanded} class="bg-white border border-slate-200 rounded-b-xl shadow-sm">
+  <div :if={@chat_open} class="bg-white border border-slate-200 rounded-b-xl shadow-sm">
     <!-- Tabs -->
     <div class="border-b border-slate-200 px-5 flex items-center justify-between">
       <div class="flex -mb-px">
