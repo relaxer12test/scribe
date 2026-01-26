@@ -401,12 +401,6 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <span class="text-[11px] text-[#a0a8b1]">Sources</span>
                   <%= if @hubspot_credential || @salesforce_credential do %>
                     <div class="flex items-center gap-1">
-                      <div
-                        class="w-4 h-4 rounded-full bg-[#09090b] flex items-center justify-center"
-                        title="Meetings"
-                      >
-                        <.icon name="hero-video-camera" class="h-2 w-2 text-white" />
-                      </div>
                       <%= if @hubspot_credential do %>
                         <div class="relative group">
                           <div class="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
