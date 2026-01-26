@@ -37,6 +37,25 @@ config :social_scribe, :recall_api_key, System.get_env("RECALL_API_KEY")
 config :social_scribe, :recall_region, System.get_env("RECALL_REGION")
 config :social_scribe, :gemini_api_key, System.get_env("GEMINI_API_KEY")
 
+git_commit_file = System.get_env("GIT_COMMIT_FILE") || "/app/.git-commit"
+
+git_commit =
+  System.get_env("GIT_COMMIT") ||
+    System.get_env("GIT_SHA") ||
+    System.get_env("GITHUB_SHA") ||
+    System.get_env("RENDER_GIT_COMMIT") ||
+    System.get_env("RELEASE_VCS_REF") ||
+    case File.read(git_commit_file) do
+      {:ok, contents} ->
+        contents = String.trim(contents)
+        if contents == "", do: "unknown", else: contents
+
+      _ ->
+        "unknown"
+    end
+
+config :social_scribe, :git_commit, git_commit
+
 config :ueberauth, Ueberauth.Strategy.Hubspot.OAuth,
   client_id: System.get_env("HUBSPOT_CLIENT_ID"),
   client_secret: System.get_env("HUBSPOT_CLIENT_SECRET")

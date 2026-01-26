@@ -61,7 +61,7 @@ defmodule SocialScribe.SalesforceSuggestions do
             person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
             context: suggestion.context,
             timestamp: suggestion.timestamp,
-            apply: true,
+            apply: false,
             mapping_open: false,
             has_change: current_value != suggestion.value
           }
@@ -90,7 +90,7 @@ defmodule SocialScribe.SalesforceSuggestions do
               person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
               context: Map.get(suggestion, :context),
               timestamp: Map.get(suggestion, :timestamp),
-              apply: true,
+              apply: false,
               mapping_open: false,
               has_change: true
             }
@@ -114,7 +114,7 @@ defmodule SocialScribe.SalesforceSuggestions do
         suggestion
         | current_value: current_value,
           has_change: current_value != suggestion.new_value,
-          apply: true
+          apply: false
       }
     end)
     |> Enum.filter(fn s -> s.has_change end)

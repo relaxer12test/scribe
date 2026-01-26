@@ -1,7 +1,62 @@
 defmodule SocialScribe.HubspotSuggestionsTest do
   use SocialScribe.DataCase
 
+  import Mox
+  import SocialScribe.AccountsFixtures
+  import SocialScribe.MeetingsFixtures
+
   alias SocialScribe.HubspotSuggestions
+
+  setup :verify_on_exit!
+
+  describe "generate_suggestions/3" do
+    test "sets apply to false and filters unchanged values" do
+      user = user_fixture()
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+      meeting = meeting_fixture()
+
+      contact = %{
+        id: "123",
+        firstname: "Pat",
+        lastname: "Doe",
+        email: "pat@example.com",
+        phone: "555-1234"
+      }
+
+      ai_suggestions = [
+        %{field: "phone", value: "555-1234", context: "Mentioned phone", timestamp: "00:10"},
+        %{field: "company", value: "Acme", context: "Works at Acme", timestamp: "00:20"}
+      ]
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn ^credential, "123" -> {:ok, contact} end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_hubspot_suggestions, fn ^meeting -> {:ok, ai_suggestions} end)
+
+      assert {:ok, %{contact: ^contact, suggestions: [suggestion]}} =
+               HubspotSuggestions.generate_suggestions(credential, "123", meeting)
+
+      assert suggestion.field == "company"
+      assert suggestion.label == "Company"
+      assert suggestion.current_value == nil
+      assert suggestion.new_value == "Acme"
+      assert suggestion.apply == false
+      assert suggestion.has_change == true
+    end
+
+    test "returns error when contact lookup fails" do
+      user = user_fixture()
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+      meeting = meeting_fixture()
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn ^credential, "123" -> {:error, :not_found} end)
+
+      assert {:error, :not_found} =
+               HubspotSuggestions.generate_suggestions(credential, "123", meeting)
+    end
+  end
 
   describe "merge_with_contact/2" do
     test "merges suggestions with contact data and filters unchanged values" do

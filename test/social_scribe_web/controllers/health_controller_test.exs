@@ -7,6 +7,6 @@ defmodule SocialScribeWeb.HealthControllerTest do
       |> put_req_header("accept", "application/json")
       |> get(~p"/health")
 
-    assert json_response(conn, 200) == %{"status" => "ok", "db" => "ok"}
+    assert %{"status" => "ok", "db" => "ok", "git_commit" => _} = json_response(conn, 200)
   end
 end

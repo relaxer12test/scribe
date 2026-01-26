@@ -147,6 +147,13 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 ---
 
+## Developer Guide
+
+For local setup details, configuration pointers, and a quick map of the CRM
+flow and key modules, see `docs/DEVELOPMENT.md`.
+
+---
+
 ## ⚙️ Functionality Deep Dive
 
 * **Connect & Sync:** Users log in with Google. The "Settings" page allows connecting multiple Google accounts, plus LinkedIn and Facebook accounts. For Facebook, after initial connection, users are guided to select a Page for posting. Calendars are synced to a database to populate the dashboard with upcoming events.

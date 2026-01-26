@@ -83,10 +83,20 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   attr :provider_config, :map, required: true
 
   defp suggestions_section(assigns) do
+    selected_count = Enum.count(assigns.suggestions, & &1.apply)
+
+    info_text =
+      if selected_count == 0 do
+        "Select the fields you want to update."
+      else
+        "1 contact, #{selected_count} field(s) selected to update"
+      end
+
     assigns =
       assigns
-      |> assign(:selected_count, Enum.count(assigns.suggestions, & &1.apply))
+      |> assign(:selected_count, selected_count)
       |> assign(:field_options, assigns.provider_config.suggestions_module.field_options())
+      |> assign(:info_text, info_text)
 
     ~H"""
     <div class="space-y-4">
@@ -120,7 +130,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
               disabled={@selected_count == 0}
               loading={@loading}
               loading_text="Updating..."
-              info_text={"1 object, #{@selected_count} fields in 1 integration selected to update"}
+              info_text={@info_text}
             />
           </form>
         <% end %>
@@ -145,7 +155,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
       |> assign(:provider, provider)
       |> assign(:provider_config, provider_config)
       |> assign(:reauth_required, reauth_required)
-      |> maybe_select_all_suggestions(assigns)
+      |> ensure_apply_defaults(assigns)
       |> assign_new(:step, fn -> :search end)
       |> assign_new(:query, fn -> "" end)
       |> assign_new(:contacts, fn -> [] end)
@@ -159,11 +169,16 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
     {:ok, socket}
   end
 
-  defp maybe_select_all_suggestions(socket, %{suggestions: suggestions}) when is_list(suggestions) do
-    assign(socket, suggestions: Enum.map(suggestions, &Map.put(&1, :apply, true)))
+  defp ensure_apply_defaults(socket, %{suggestions: suggestions}) when is_list(suggestions) do
+    updated =
+      Enum.map(suggestions, fn suggestion ->
+        Map.put_new(suggestion, :apply, false)
+      end)
+
+    assign(socket, suggestions: updated)
   end
 
-  defp maybe_select_all_suggestions(socket, _assigns), do: socket
+  defp ensure_apply_defaults(socket, _assigns), do: socket
 
   @impl true
   def handle_event("contact_search", %{"value" => query}, socket) do

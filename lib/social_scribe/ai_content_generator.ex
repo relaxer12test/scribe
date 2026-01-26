@@ -157,39 +157,7 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   defp parse_hubspot_suggestions(response) do
-    # Clean up the response - remove markdown code blocks if present
-    cleaned =
-      response
-      |> String.trim()
-      |> String.replace(~r/^```json\n?/, "")
-      |> String.replace(~r/\n?```$/, "")
-      |> String.trim()
-
-    case Jason.decode(cleaned) do
-      {:ok, suggestions} when is_list(suggestions) ->
-        formatted =
-          suggestions
-          |> Enum.filter(&is_map/1)
-          |> Enum.map(fn s ->
-            %{
-              field: s["field"],
-              value: s["value"],
-              person: s["person"],
-              context: s["context"],
-              timestamp: s["timestamp"]
-            }
-          end)
-          |> Enum.filter(fn s -> s.field != nil and s.value != nil end)
-
-        {:ok, formatted}
-
-      {:ok, _} ->
-        {:ok, []}
-
-      {:error, _} ->
-        # If JSON parsing fails, return empty suggestions
-        {:ok, []}
-    end
+    parse_contact_suggestions(response)
   end
 
   @impl SocialScribe.AIContentGeneratorApi
@@ -517,12 +485,7 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   defp parse_chat_response(response) do
-    cleaned =
-      response
-      |> String.trim()
-      |> String.replace(~r/^```json\n?/, "")
-      |> String.replace(~r/\n?```$/, "")
-      |> String.trim()
+    cleaned = strip_json_fences(response)
 
     case Jason.decode(cleaned) do
       {:ok, %{"answer" => answer, "sources" => sources}} when is_list(sources) ->
@@ -542,27 +505,18 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   defp parse_salesforce_suggestions(response) do
-    cleaned =
-      response
-      |> String.trim()
-      |> String.replace(~r/^```json\n?/, "")
-      |> String.replace(~r/\n?```$/, "")
-      |> String.trim()
+    parse_contact_suggestions(response)
+  end
+
+  defp parse_contact_suggestions(response) do
+    cleaned = strip_json_fences(response)
 
     case Jason.decode(cleaned) do
       {:ok, suggestions} when is_list(suggestions) ->
         formatted =
           suggestions
           |> Enum.filter(&is_map/1)
-          |> Enum.map(fn s ->
-            %{
-              field: s["field"],
-              value: s["value"],
-              person: s["person"],
-              context: s["context"],
-              timestamp: s["timestamp"]
-            }
-          end)
+          |> Enum.map(&format_contact_suggestion/1)
           |> Enum.filter(fn s -> s.field != nil and s.value != nil end)
 
         {:ok, formatted}
@@ -573,6 +527,24 @@ defmodule SocialScribe.AIContentGenerator do
       {:error, _} ->
         {:ok, []}
     end
+  end
+
+  defp format_contact_suggestion(suggestion) do
+    %{
+      field: suggestion["field"],
+      value: suggestion["value"],
+      person: suggestion["person"],
+      context: suggestion["context"],
+      timestamp: suggestion["timestamp"]
+    }
+  end
+
+  defp strip_json_fences(response) do
+    response
+    |> String.trim()
+    |> String.replace(~r/^```json\n?/, "")
+    |> String.replace(~r/\n?```$/, "")
+    |> String.trim()
   end
 
   defp call_gemini(prompt_text) do

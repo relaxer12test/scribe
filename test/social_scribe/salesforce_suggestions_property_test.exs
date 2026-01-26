@@ -45,14 +45,14 @@ defmodule SocialScribe.SalesforceSuggestionsPropertyTest do
       end
     end
 
-    property "all returned suggestions have apply set to true" do
+    property "all returned suggestions have apply set to false" do
       check all suggestions <- list_of(suggestion_generator(), min_length: 1, max_length: 5),
                 contact <- contact_generator() do
         result = SalesforceSuggestions.merge_with_contact(suggestions, contact)
 
         for suggestion <- result do
-          assert suggestion.apply == true,
-                 "Suggestion for #{suggestion.field} should have apply: true"
+          assert suggestion.apply == false,
+                 "Suggestion for #{suggestion.field} should have apply: false"
         end
       end
     end

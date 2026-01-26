@@ -43,7 +43,7 @@ defmodule SocialScribe.SalesforceSuggestionsTest do
       assert suggestion.label == "Job Title"
       assert suggestion.current_value == "CTO"
       assert suggestion.new_value == "VP"
-      assert suggestion.apply == true
+      assert suggestion.apply == false
       assert suggestion.has_change == true
     end
 

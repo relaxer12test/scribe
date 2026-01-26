@@ -63,6 +63,28 @@ COPY config/runtime.exs config/
 COPY rel rel
 RUN mix release
 
+# capture git commit for runtime health endpoint
+ARG GIT_COMMIT
+COPY .git .git
+RUN set -eu; \
+  commit="${GIT_COMMIT:-}"; \
+  if [ -z "$commit" ] && [ -f .git/HEAD ]; then \
+    head_ref="$(cat .git/HEAD)"; \
+    case "$head_ref" in \
+      ref:*) \
+        ref_path="${head_ref#ref: }"; \
+        if [ -f ".git/$ref_path" ]; then \
+          commit="$(cat ".git/$ref_path")"; \
+        elif [ -f ".git/packed-refs" ]; then \
+          commit="$(awk -v ref="$ref_path" '$2 == ref {print $1; exit}' .git/packed-refs)"; \
+        fi \
+        ;; \
+      *) commit="$head_ref" ;; \
+    esac; \
+  fi; \
+  if [ -z "$commit" ]; then commit="unknown"; fi; \
+  printf "%s" "$commit" > /app/.git-commit
+
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
@@ -86,6 +108,7 @@ ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/social_scribe ./
+COPY --from=builder --chown=nobody:root /app/.git-commit /app/.git-commit
 
 USER nobody
 
