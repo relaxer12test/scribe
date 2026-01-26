@@ -121,6 +121,25 @@
                     <%= if msg.role == "assistant" && has_sources?(msg) do %>
                       <div class="mt-3 pt-3 border-t border-slate-200/50">
                         <p class="text-xs font-medium text-slate-500 mb-2">Sources</p>
+                        <%= if is_list(msg.mentions) && msg.mentions != [] do %>
+                          <div class="flex items-center gap-1.5 mb-2">
+                            <%= for mention <- msg.mentions || [] do %>
+                              <span
+                                class="relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 text-[8px] font-semibold text-slate-600"
+                                title={mention.contact_name || mention[:contact_name] || ""}
+                              >
+                                {get_mention_initials(mention.contact_name || mention[:contact_name] || "")}
+                                <span class={[
+                                  "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white border border-white",
+                                  mention.crm_provider == "hubspot" && "bg-orange-500",
+                                  mention.crm_provider == "salesforce" && "bg-blue-500"
+                                ]}>
+                                  {provider_letter(mention.crm_provider)}
+                                </span>
+                              </span>
+                            <% end %>
+                          </div>
+                        <% end %>
                         <div class="space-y-1">
                           <%= for source <- msg.sources["meetings"] || [] do %>
                             <.link

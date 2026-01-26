@@ -209,17 +209,34 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                         <%= if has_sources?(msg) do %>
                           <div class="flex items-center gap-1.5 pt-1">
                             <span class="text-[11px] font-medium text-slate-400">Sources</span>
-                            <%= for source <- msg.sources["meetings"] || [] do %>
-                              <.link
-                                href={~p"/dashboard/meetings/#{source["meeting_id"]}"}
-                                class="inline-flex items-center"
-                                title={source["title"]}
-                              >
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-800">
-                                  <.icon name="hero-video-camera" class="h-2 w-2 text-white" />
+                            <div class="flex items-center gap-1">
+                              <%= for mention <- msg.mentions || [] do %>
+                                <span
+                                  class="relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 text-[8px] font-semibold text-slate-600"
+                                  title={mention.contact_name || mention[:contact_name] || ""}
+                                >
+                                  {get_mention_initials(mention.contact_name || mention[:contact_name] || "")}
+                                  <span class={[
+                                    "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white border border-white",
+                                    mention.crm_provider == "hubspot" && "bg-orange-500",
+                                    mention.crm_provider == "salesforce" && "bg-blue-500"
+                                  ]}>
+                                    {provider_letter(mention.crm_provider)}
+                                  </span>
                                 </span>
-                              </.link>
-                            <% end %>
+                              <% end %>
+                              <%= for source <- msg.sources["meetings"] || [] do %>
+                                <.link
+                                  href={~p"/dashboard/meetings/#{source["meeting_id"]}"}
+                                  class="inline-flex items-center"
+                                  title={source["title"]}
+                                >
+                                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-800">
+                                    <.icon name="hero-video-camera" class="h-2 w-2 text-white" />
+                                  </span>
+                                </.link>
+                              <% end %>
+                            </div>
                           </div>
                         <% end %>
                       </div>
@@ -1123,6 +1140,11 @@ defmodule SocialScribeWeb.ChatBubbleLive do
   end
 
   defp has_sources?(message) do
-    message.sources && message.sources["meetings"] && length(message.sources["meetings"]) > 0
+    has_meetings =
+      message.sources && message.sources["meetings"] && length(message.sources["meetings"]) > 0
+
+    has_mentions = is_list(message.mentions) && length(message.mentions) > 0
+
+    has_meetings || has_mentions
   end
 end

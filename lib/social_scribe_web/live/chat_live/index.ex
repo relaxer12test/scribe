@@ -369,7 +369,12 @@ defmodule SocialScribeWeb.ChatLive.Index do
   end
 
   defp has_sources?(message) do
-    message.sources && message.sources["meetings"] && length(message.sources["meetings"]) > 0
+    has_meetings =
+      message.sources && message.sources["meetings"] && length(message.sources["meetings"]) > 0
+
+    has_mentions = is_list(message.mentions) && length(message.mentions) > 0
+
+    has_meetings || has_mentions
   end
 
   defp render_content_with_mentions(content, mentions) when is_list(mentions) and length(mentions) > 0 do
