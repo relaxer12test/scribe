@@ -426,12 +426,17 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         assign(socket, bubble_open: false)
       end
 
-    {:noreply, socket}
+    {:noreply, push_chat_url_state(socket)}
   end
 
   @impl true
   def handle_event("close_bubble", _params, socket) do
-    {:noreply, assign(socket, bubble_open: false)}
+    socket =
+      socket
+      |> assign(bubble_open: false)
+      |> push_chat_url_state()
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -454,6 +459,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         active_tab: :chat
       )
       |> push_event("focus_bubble_input", %{})
+      |> push_chat_url_state()
 
     {:noreply, socket}
   end
@@ -468,7 +474,8 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       {:noreply,
        socket
        |> assign(current_thread: thread, messages: grouped, active_tab: :chat)
-       |> push_event("focus_bubble_input", %{})}
+       |> push_event("focus_bubble_input", %{})
+       |> push_chat_url_state()}
     else
       {:noreply, socket}
     end
@@ -598,6 +605,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 pending_mentions: mentions
               )
               |> push_event("update_bubble_input", %{value: ""})
+              |> push_chat_url_state()
 
             send(self(), {:process_message, thread.id, content, mentions})
             {:noreply, socket}
@@ -627,7 +635,12 @@ defmodule SocialScribeWeb.ChatBubbleLive do
 
   @impl true
   def handle_event("keydown", %{"key" => "Escape"}, socket) do
-    {:noreply, assign(socket, bubble_open: false)}
+    socket =
+      socket
+      |> assign(bubble_open: false)
+      |> push_chat_url_state()
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -637,10 +650,33 @@ defmodule SocialScribeWeb.ChatBubbleLive do
 
   @impl true
   def handle_event("open_bubble", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(bubble_open: true)
-     |> push_event("focus_bubble_input", %{})}
+    socket =
+      socket
+      |> assign(bubble_open: true)
+      |> push_event("focus_bubble_input", %{})
+      |> push_chat_url_state()
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("sync_url_state", params, socket) do
+    open = parse_open_param(params["open"])
+    thread_id = params["thread_id"]
+
+    socket =
+      socket
+      |> assign(bubble_open: open)
+      |> maybe_assign_thread(thread_id)
+
+    socket =
+      if open do
+        push_event(socket, "focus_bubble_input", %{})
+      else
+        socket
+      end
+
+    {:noreply, push_chat_url_state(socket)}
   end
 
   # Handle messages
@@ -775,6 +811,34 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       _ ->
         assign(socket, mention_query: nil, mention_search_results: [], searching_contacts: false)
     end
+  end
+
+  defp parse_open_param(value) when value in [true, "true", "1", 1, "open", "yes"], do: true
+  defp parse_open_param(value) when value in [false, "false", "0", 0, "closed", "no", nil], do: false
+  defp parse_open_param(_value), do: false
+
+  defp maybe_assign_thread(socket, nil) do
+    assign(socket, current_thread: nil, messages: %{})
+  end
+
+  defp maybe_assign_thread(socket, "") do
+    assign(socket, current_thread: nil, messages: %{})
+  end
+
+  defp maybe_assign_thread(socket, thread_id) do
+    thread = Chat.get_thread_with_messages(thread_id, socket.assigns.current_user.id)
+
+    if thread do
+      grouped = Chat.get_messages_grouped_by_date(thread.id)
+      assign(socket, current_thread: thread, messages: grouped, active_tab: :chat)
+    else
+      assign(socket, current_thread: nil, messages: %{})
+    end
+  end
+
+  defp push_chat_url_state(socket) do
+    thread_id = socket.assigns.current_thread && socket.assigns.current_thread.id
+    push_event(socket, "chat_url_state", %{open: socket.assigns.bubble_open, thread_id: thread_id})
   end
 
   defp detect_mention_query(value) do

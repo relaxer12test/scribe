@@ -37,6 +37,71 @@ Hooks.GlobalKeyboard = {
 // Chat Bubble container hook
 Hooks.ChatBubble = {
     mounted() {
+        this.chatState = { open: false, threadId: null }
+        this.hasChatState = false
+
+        const parseOpenParam = (value) => {
+            if (!value) return null
+            const normalized = value.toLowerCase()
+            if (["open", "1", "true", "yes"].includes(normalized)) return true
+            if (["closed", "0", "false", "no"].includes(normalized)) return false
+            return null
+        }
+
+        const applyUrlState = () => {
+            const params = new URLSearchParams(window.location.search)
+            const chatParam = params.get("chat")
+            const threadId = params.get("chat_thread")
+
+            if (!chatParam && !threadId) return
+
+            const openFromParam = parseOpenParam(chatParam)
+            const open = openFromParam === null ? !!threadId : openFromParam
+
+            this.pushEvent("sync_url_state", { open: open, thread_id: threadId })
+        }
+
+        const updateUrlFromState = () => {
+            if (!window.history || !window.history.replaceState) return
+
+            const url = new URL(window.location.href)
+
+            if (this.chatState.open) {
+                url.searchParams.set("chat", "open")
+            } else {
+                url.searchParams.set("chat", "closed")
+            }
+
+            if (this.chatState.threadId) {
+                url.searchParams.set("chat_thread", this.chatState.threadId)
+            } else {
+                url.searchParams.delete("chat_thread")
+            }
+
+            const next = url.pathname + url.search + url.hash
+            const current = window.location.pathname + window.location.search + window.location.hash
+
+            if (next !== current) {
+                window.history.replaceState(window.history.state, "", next)
+            }
+        }
+
+        this.handleChatUrlState = ({ open, thread_id }) => {
+            this.chatState = {
+                open: !!open,
+                threadId: thread_id ? String(thread_id) : null
+            }
+            this.hasChatState = true
+
+            updateUrlFromState()
+        }
+
+        this.handlePageLoadStop = () => {
+            if (this.hasChatState) {
+                updateUrlFromState()
+            }
+        }
+
         // Handle Escape key to close bubble
         this.handleKeydown = (e) => {
             if (e.key === 'Escape') {
@@ -52,13 +117,19 @@ Hooks.ChatBubble = {
             this.pushEvent('toggle_bubble', {})
         }
 
+        this.handleEvent("chat_url_state", this.handleChatUrlState)
+
         document.addEventListener('keydown', this.handleKeydown)
         window.addEventListener('toggle-chat-bubble', this.handleToggle)
+        window.addEventListener("phx:page-loading-stop", this.handlePageLoadStop)
+
+        applyUrlState()
     },
 
     destroyed() {
         document.removeEventListener('keydown', this.handleKeydown)
         window.removeEventListener('toggle-chat-bubble', this.handleToggle)
+        window.removeEventListener("phx:page-loading-stop", this.handlePageLoadStop)
     }
 }
 
