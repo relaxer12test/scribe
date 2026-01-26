@@ -98,7 +98,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       <div
         :if={@bubble_open}
         id="chat-panel"
-        class="fixed top-0 right-0 h-full w-full sm:w-[20rem] bg-white shadow-[0_0_0_1px_rgba(226,232,240,0.9),0_18px_40px_rgba(15,23,42,0.08)] z-50 flex flex-col chat-sidebar-enter"
+        class="fixed top-0 right-0 h-full w-full sm:w-[24rem] bg-white border-t border-slate-200 shadow-[0_0_0_1px_rgba(226,232,240,0.9),0_18px_40px_rgba(15,23,42,0.08)] z-50 flex flex-col chat-sidebar-enter"
       >
         <!-- Header -->
         <div class="px-4 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
@@ -181,9 +181,13 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               <% else %>
                 <!-- Messages grouped by date -->
                 <%= for {date, msgs} <- @messages do %>
-                  <!-- Date/time divider - centered text only, no lines -->
-                  <div class="flex items-center justify-center py-2">
-                    <span class="text-[11px] text-slate-400">{format_date_with_time(date, List.first(msgs))}</span>
+                  <!-- Date/time divider with side lines -->
+                  <div class="flex items-center gap-3 py-2">
+                    <div class="flex-1 border-t border-slate-200"></div>
+                    <span class="text-[11px] text-slate-400 whitespace-nowrap">
+                      {format_date_with_time(date, List.first(msgs))}
+                    </span>
+                    <div class="flex-1 border-t border-slate-200"></div>
                   </div>
 
                   <%= for msg <- msgs do %>
@@ -370,18 +374,25 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <span class="text-[11px] text-slate-400">Sources</span>
                   <%= if @hubspot_credential || @salesforce_credential do %>
                     <div class="flex items-center gap-1">
-                      <!-- Meetings (always shown when any credential exists) -->
-                      <div class="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center" title="Meetings">
-                        <.icon name="hero-video-camera" class="h-2 w-2 text-white" />
-                      </div>
+                      <!-- CRM connections only -->
                       <%= if @hubspot_credential do %>
-                        <div class="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center" title="HubSpot">
-                          <span class="text-white text-[8px] font-bold">H</span>
+                        <div class="relative group">
+                          <div class="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
+                            <span class="text-white text-[8px] font-bold">H</span>
+                          </div>
+                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
+                            HubSpot
+                          </span>
                         </div>
                       <% end %>
                       <%= if @salesforce_credential do %>
-                        <div class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center" title="Salesforce">
-                          <span class="text-white text-[8px] font-bold">S</span>
+                        <div class="relative group">
+                          <div class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                            <span class="text-white text-[8px] font-bold">S</span>
+                          </div>
+                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
+                            Salesforce
+                          </span>
                         </div>
                       <% end %>
                     </div>
