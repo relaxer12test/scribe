@@ -41,7 +41,7 @@ Hooks.ChatBubble = {
         this.hasChatState = false
 
         const parseOpenParam = (value) => {
-            if (!value) return null
+            if (value === null || value === undefined || value === "") return false
             const normalized = value.toLowerCase()
             if (["open", "1", "true", "yes"].includes(normalized)) return true
             if (["closed", "0", "false", "no"].includes(normalized)) return false
@@ -68,13 +68,13 @@ Hooks.ChatBubble = {
 
             if (this.chatState.open) {
                 url.searchParams.set("chat", "open")
+                if (this.chatState.threadId) {
+                    url.searchParams.set("chat_thread", this.chatState.threadId)
+                } else {
+                    url.searchParams.delete("chat_thread")
+                }
             } else {
-                url.searchParams.set("chat", "closed")
-            }
-
-            if (this.chatState.threadId) {
-                url.searchParams.set("chat_thread", this.chatState.threadId)
-            } else {
+                url.searchParams.delete("chat")
                 url.searchParams.delete("chat_thread")
             }
 
