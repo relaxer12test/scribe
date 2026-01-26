@@ -294,6 +294,44 @@ defmodule SocialScribe.MeetingsTest do
     end
   end
 
+  describe "resolve_speaker_name/3" do
+    test "prefers participant name from the transcript segment" do
+      segment = %{"participant" => %{"name" => "Ruth Keller"}}
+      assert Meetings.resolve_speaker_name(segment) == "Ruth Keller"
+    end
+
+    test "uses speaker name from a nested speaker map" do
+      segment = %{"speaker" => %{"display_name" => "Sam Lee"}}
+      assert Meetings.resolve_speaker_name(segment) == "Sam Lee"
+    end
+
+    test "uses speaker name from a direct string" do
+      segment = %{"speaker" => "Avery Hall"}
+      assert Meetings.resolve_speaker_name(segment) == "Avery Hall"
+    end
+
+    test "resolves speaker_id using meeting participants" do
+      participants = [
+        %MeetingParticipant{recall_participant_id: "200", name: "Jordan Vale"}
+      ]
+
+      segment = %{"speaker_id" => 200}
+      assert Meetings.resolve_speaker_name(segment, participants) == "Jordan Vale"
+    end
+
+    test "resolves participant id using generic id keys" do
+      participants = [%{id: 300, name: "Maya Chen"}]
+      segment = %{"participant_id" => "300"}
+
+      assert Meetings.resolve_speaker_name(segment, participants) == "Maya Chen"
+    end
+
+    test "falls back to the provided default when no name is present" do
+      segment = %{"speaker" => "   "}
+      assert Meetings.resolve_speaker_name(segment, [], "Unknown Speaker") == "Unknown Speaker"
+    end
+  end
+
   describe "create_meeting_from_recall_data/3" do
     import SocialScribe.MeetingInfoExample
     import SocialScribe.MeetingTranscriptExample
@@ -374,6 +412,38 @@ defmodule SocialScribe.MeetingsTest do
 
              ### Transcript:
              """
+    end
+
+    test "uses participant names when speaker is identified only by id" do
+      meeting = meeting_fixture()
+
+      _meeting_participant =
+        meeting_participant_fixture(%{
+          meeting_id: meeting.id,
+          recall_participant_id: "42",
+          name: "Taylor Reed",
+          is_host: true
+        })
+
+      meeting_transcript_fixture(%{
+        meeting_id: meeting.id,
+        content: %{
+          "data" => [
+            %{
+              "speaker_id" => 42,
+              "words" => [
+                %{"text" => "Hello there", "start_timestamp" => 0.0}
+              ]
+            }
+          ]
+        }
+      })
+
+      meeting = Meetings.get_meeting_with_details(meeting.id)
+
+      {:ok, prompt} = Meetings.generate_prompt_for_meeting(meeting)
+
+      assert prompt =~ "[00:00] Taylor Reed: Hello there"
     end
   end
 end

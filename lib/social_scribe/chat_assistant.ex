@@ -415,21 +415,23 @@ defmodule SocialScribe.ChatAssistant do
       |> Enum.map(&String.downcase(&1.name || ""))
       |> Enum.any?(fn name -> Enum.any?(tokens, &String.contains?(name, &1)) end)
 
-    participant_match? || transcript_mentions_tokens?(meeting.meeting_transcript, tokens)
+    participant_match? ||
+      transcript_mentions_tokens?(meeting.meeting_transcript, tokens, meeting.meeting_participants)
   end
 
-  defp transcript_mentions_tokens?(%{content: %{"data" => data}}, tokens) when is_list(data) do
-    Enum.any?(data, &segment_mentions_tokens?(&1, tokens))
+  defp transcript_mentions_tokens?(%{content: %{"data" => data}}, tokens, participants)
+       when is_list(data) do
+    Enum.any?(data, &segment_mentions_tokens?(&1, tokens, participants))
   end
 
-  defp transcript_mentions_tokens?(%{content: data}, tokens) when is_list(data) do
-    Enum.any?(data, &segment_mentions_tokens?(&1, tokens))
+  defp transcript_mentions_tokens?(%{content: data}, tokens, participants) when is_list(data) do
+    Enum.any?(data, &segment_mentions_tokens?(&1, tokens, participants))
   end
 
-  defp transcript_mentions_tokens?(_transcript, _tokens), do: false
+  defp transcript_mentions_tokens?(_transcript, _tokens, _participants), do: false
 
-  defp segment_mentions_tokens?(segment, tokens) do
-    speaker = Map.get(segment, "speaker", "")
+  defp segment_mentions_tokens?(segment, tokens, participants) do
+    speaker = Meetings.resolve_speaker_name(segment, participants, "")
     words = Map.get(segment, "words", [])
     text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
     haystack = String.downcase("#{speaker} #{text}")

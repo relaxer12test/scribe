@@ -426,6 +426,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   defp shift_to_timezone(datetime, _timezone), do: datetime
 
   attr :meeting_transcript, :map, required: true
+  attr :meeting_participants, :list, default: []
 
   defp transcript_content(assigns) do
     has_transcript =
@@ -434,8 +435,11 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         Map.get(assigns.meeting_transcript.content, "data") &&
         Enum.any?(Map.get(assigns.meeting_transcript.content, "data"))
 
+    participants = Map.get(assigns, :meeting_participants) || []
+
     assigns =
       assigns
+      |> assign(:meeting_participants, participants)
       |> assign(:has_transcript, has_transcript)
 
     ~H"""
@@ -451,7 +455,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         <%= if @has_transcript do %>
           <%= for {segment, index} <- Enum.with_index(@meeting_transcript.content["data"]) do %>
             <% timestamp = segment_timestamp(segment) %>
-            <% speaker = segment["speaker"] || "Unknown Speaker" %>
+            <% speaker = Meetings.resolve_speaker_name(segment, @meeting_participants) %>
             <% text = Enum.map_join(segment["words"] || [], " ", & &1["text"]) %>
             <div
               id={"transcript-segment-#{index}"}

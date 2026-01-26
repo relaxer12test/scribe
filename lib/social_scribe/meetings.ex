@@ -495,6 +495,99 @@ defmodule SocialScribe.Meetings do
 
   defp bot_name?(_), do: false
 
+  @doc """
+  Resolves a speaker name from a transcript segment, supporting multiple Recall formats.
+  """
+  def resolve_speaker_name(segment, participants \\ [], fallback \\ "Unknown Speaker") do
+    participants = normalize_participants(participants)
+
+    name =
+      participant_name_from_segment(segment) ||
+        participant_name_from_participants(segment, participants) ||
+        speaker_name_from_segment(segment)
+
+    name || fallback
+  end
+
+  defp normalize_participants(participants) when is_list(participants), do: participants
+  defp normalize_participants(_), do: []
+
+  defp participant_name_from_segment(segment) when is_map(segment) do
+    segment
+    |> map_get_any(["participant", :participant])
+    |> extract_name()
+    |> present_string()
+  end
+
+  defp participant_name_from_segment(_), do: nil
+
+  defp participant_name_from_participants(segment, participants) when is_map(segment) do
+    participant_id = participant_id_from_segment(segment)
+
+    if participant_id do
+      participant_id = to_string(participant_id)
+
+      Enum.find_value(participants, fn participant ->
+        id =
+          map_get_any(participant, [
+            "recall_participant_id",
+            :recall_participant_id,
+            "id",
+            :id
+          ])
+
+        if id && to_string(id) == participant_id do
+          participant
+          |> map_get_any(["name", :name])
+          |> present_string()
+        end
+      end)
+    end
+  end
+
+  defp participant_name_from_participants(_, _), do: nil
+
+  defp participant_id_from_segment(segment) do
+    map_get_any(segment, ["speaker_id", :speaker_id, "participant_id", :participant_id]) ||
+      segment
+      |> map_get_any(["participant", :participant])
+      |> map_get_any(["id", :id]) ||
+      segment
+      |> map_get_any(["speaker", :speaker])
+      |> map_get_any(["id", :id])
+  end
+
+  defp speaker_name_from_segment(segment) when is_map(segment) do
+    speaker = map_get_any(segment, ["speaker", :speaker, "speaker_name", :speaker_name])
+
+    cond do
+      is_binary(speaker) -> present_string(speaker)
+      is_map(speaker) -> speaker |> extract_name() |> present_string()
+      true -> nil
+    end
+  end
+
+  defp speaker_name_from_segment(_), do: nil
+
+  defp extract_name(source) when is_map(source) do
+    map_get_any(source, ["name", :name, "display_name", :display_name, "full_name", :full_name])
+  end
+
+  defp extract_name(_), do: nil
+
+  defp present_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp present_string(_), do: nil
+
+  defp map_get_any(map, keys) when is_map(map) do
+    Enum.find_value(keys, fn key -> Map.get(map, key) end)
+  end
+
+  defp map_get_any(_, _), do: nil
+
 
   @doc """
   Generates a prompt for a meeting.
@@ -505,7 +598,7 @@ defmodule SocialScribe.Meetings do
         {:error, :no_participants}
 
       {:ok, participants_string} ->
-        case transcript_to_string(meeting.meeting_transcript) do
+        case transcript_to_string(meeting.meeting_transcript, meeting.meeting_participants) do
           {:error, :no_transcript} ->
             {:error, :no_transcript}
 
@@ -552,16 +645,20 @@ defmodule SocialScribe.Meetings do
     end
   end
 
-  defp transcript_to_string(%MeetingTranscript{content: %{"data" => transcript_data}})
+  defp transcript_to_string(
+         %MeetingTranscript{content: %{"data" => transcript_data}},
+         participants
+       )
        when not is_nil(transcript_data) do
-    {:ok, format_transcript_for_prompt(transcript_data)}
+    {:ok, format_transcript_for_prompt(transcript_data, participants)}
   end
 
-  defp transcript_to_string(_), do: {:error, :no_transcript}
+  defp transcript_to_string(_, _), do: {:error, :no_transcript}
 
-  defp format_transcript_for_prompt(transcript_segments) when is_list(transcript_segments) do
+  defp format_transcript_for_prompt(transcript_segments, participants)
+       when is_list(transcript_segments) do
     Enum.map_join(transcript_segments, "\n", fn segment ->
-      speaker = Map.get(segment, "speaker", "Unknown Speaker")
+      speaker = resolve_speaker_name(segment, participants)
       words = Map.get(segment, "words", [])
       text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
       timestamp = format_timestamp(List.first(words))
@@ -569,7 +666,7 @@ defmodule SocialScribe.Meetings do
     end)
   end
 
-  defp format_transcript_for_prompt(_), do: ""
+  defp format_transcript_for_prompt(_, _), do: ""
 
   defp format_timestamp(nil), do: "00:00"
 

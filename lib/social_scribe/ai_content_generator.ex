@@ -361,7 +361,7 @@ defmodule SocialScribe.AIContentGenerator do
       transcript =
         case meeting.meeting_transcript do
           nil -> "No transcript available"
-          t -> format_transcript_excerpt(t.content, tokens)
+          t -> format_transcript_excerpt(t.content, tokens, meeting.meeting_participants)
         end
 
       """
@@ -377,24 +377,24 @@ defmodule SocialScribe.AIContentGenerator do
     |> Enum.join("\n")
   end
 
-  defp format_transcript_excerpt(nil, _tokens), do: "No transcript"
+  defp format_transcript_excerpt(nil, _tokens, _participants), do: "No transcript"
 
-  defp format_transcript_excerpt(%{"data" => data}, tokens) when is_list(data) do
-    format_transcript_excerpt(data, tokens)
+  defp format_transcript_excerpt(%{"data" => data}, tokens, participants) when is_list(data) do
+    format_transcript_excerpt(data, tokens, participants)
   end
 
-  defp format_transcript_excerpt(content, tokens) when is_list(content) do
+  defp format_transcript_excerpt(content, tokens, participants) when is_list(content) do
     segments =
       if Enum.empty?(tokens) do
         Enum.take(content, 20)
       else
-        matched = Enum.filter(content, &segment_mentions_tokens?(&1, tokens))
+        matched = Enum.filter(content, &segment_mentions_tokens?(&1, tokens, participants))
         if matched == [], do: Enum.take(content, 20), else: Enum.take(matched, 20)
       end
 
     segments
     |> Enum.map(fn segment ->
-      speaker = Map.get(segment, "speaker", "Unknown")
+      speaker = Meetings.resolve_speaker_name(segment, participants, "Unknown")
       words = Map.get(segment, "words", [])
       text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
       timestamp = format_timestamp(List.first(words))
@@ -403,11 +403,11 @@ defmodule SocialScribe.AIContentGenerator do
     |> Enum.join("\n")
   end
 
-  defp format_transcript_excerpt(content, _tokens) when is_binary(content) do
+  defp format_transcript_excerpt(content, _tokens, _participants) when is_binary(content) do
     content |> String.slice(0, 2000)
   end
 
-  defp format_transcript_excerpt(_content, _tokens), do: "No transcript"
+  defp format_transcript_excerpt(_content, _tokens, _participants), do: "No transcript"
 
   defp contact_match_tokens([]), do: []
 
@@ -437,8 +437,8 @@ defmodule SocialScribe.AIContentGenerator do
     |> Enum.filter(&present?/1)
   end
 
-  defp segment_mentions_tokens?(segment, tokens) do
-    speaker = Map.get(segment, "speaker", "")
+  defp segment_mentions_tokens?(segment, tokens, participants) do
+    speaker = Meetings.resolve_speaker_name(segment, participants, "")
     words = Map.get(segment, "words", [])
     text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
     haystack = String.downcase("#{speaker} #{text}")

@@ -205,6 +205,63 @@ defmodule SocialScribe.ChatAssistantTest do
                )
     end
 
+    test "matches meetings when transcript only includes participant metadata" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+
+      mention = %{contact_id: "hs1", contact_name: "Pat Doe", crm_provider: "hubspot"}
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn ^credential, "hs1" ->
+        {:ok, %{id: "hs1", firstname: "Pat", lastname: "Doe", email: "pat@example.com"}}
+      end)
+
+      calendar_event_1 = calendar_event_fixture(%{user_id: user.id})
+      meeting_1 = meeting_fixture(%{calendar_event_id: calendar_event_1.id})
+
+      transcript_1 = %{
+        "data" => [
+          %{
+            "participant" => %{"name" => "Pat Doe"},
+            "words" => [%{"text" => "Hello team", "start_timestamp" => 1.0}]
+          }
+        ]
+      }
+
+      meeting_transcript_fixture(%{meeting_id: meeting_1.id, content: transcript_1})
+
+      calendar_event_2 = calendar_event_fixture(%{user_id: user.id})
+      meeting_2 = meeting_fixture(%{calendar_event_id: calendar_event_2.id})
+
+      transcript_2 = %{
+        "data" => [
+          %{
+            "participant" => %{"name" => "Other Person"},
+            "words" => [%{"text" => "Nothing relevant", "start_timestamp" => 2.0}]
+          }
+        ]
+      }
+
+      meeting_transcript_fixture(%{meeting_id: meeting_2.id, content: transcript_2})
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response, fn _query, _contacts, meetings, _crm_updates, _history ->
+        assert Enum.any?(meetings, &(&1.id == meeting_1.id))
+        refute Enum.any?(meetings, &(&1.id == meeting_2.id))
+        {:ok, %{answer: "Found meetings.", sources: []}}
+      end)
+
+      assert {:ok, _result} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "What did Pat say?",
+                 [mention],
+                 %{hubspot: credential, salesforce: nil}
+               )
+    end
+
     test "returns error when AI generation fails and keeps the user message" do
       user = user_fixture()
       thread = chat_thread_fixture(%{user_id: user.id})

@@ -109,7 +109,10 @@
       </div>
     <% end %>
 
-    <.transcript_content meeting_transcript={@meeting.meeting_transcript} />
+    <.transcript_content
+      meeting_transcript={@meeting.meeting_transcript}
+      meeting_participants={@meeting.meeting_participants}
+    />
     <div class="bg-white shadow-xl rounded-lg p-6 md:p-8">
       <h2 class="text-2xl font-semibold mb-4 text-slate-700">Attendees</h2>
       <% attendees = Meetings.human_participants(@meeting.meeting_participants) %>
