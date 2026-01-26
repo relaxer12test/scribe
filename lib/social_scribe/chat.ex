@@ -157,11 +157,15 @@ defmodule SocialScribe.Chat do
   end
 
   @doc """
-  Get all messages for a thread grouped by date.
+  Get all messages for a thread grouped by date, scoped to the owning user.
   """
-  def get_messages_grouped_by_date(thread_id) do
+  def get_messages_grouped_by_date(thread_id, user_id) when is_nil(thread_id) or is_nil(user_id),
+    do: %{}
+
+  def get_messages_grouped_by_date(thread_id, user_id) do
     ChatMessage
-    |> where([m], m.chat_thread_id == ^thread_id)
+    |> join(:inner, [m], t in ChatThread, on: m.chat_thread_id == t.id)
+    |> where([m, t], m.chat_thread_id == ^thread_id and t.user_id == ^user_id)
     |> order_by([m], asc: m.inserted_at)
     |> preload(:mentions)
     |> Repo.all()

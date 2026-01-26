@@ -43,7 +43,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
     thread = Chat.get_thread_with_messages(thread_id, socket.assigns.current_user.id)
 
     if thread do
-      grouped = Chat.get_messages_grouped_by_date(thread.id)
+      grouped = Chat.get_messages_grouped_by_date(thread.id, socket.assigns.current_user.id)
       {:noreply,
        socket
        |> assign(current_thread: thread, messages: grouped, active_tab: :chat, chat_open: true)
@@ -223,7 +223,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
            credentials
          ) do
       {:ok, _result} ->
-        grouped = Chat.get_messages_grouped_by_date(thread_id)
+        grouped = Chat.get_messages_grouped_by_date(thread_id, socket.assigns.current_user.id)
         threads = Chat.list_user_threads(socket.assigns.current_user.id)
 
         # Update thread title if it's the first message

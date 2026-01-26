@@ -21,25 +21,31 @@ defmodule SocialScribe.ChatAssistant do
   def process_message(thread_id, user_id, content, mentions, credentials) do
     formatted_mentions = format_mentions(mentions)
 
-    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
-         {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
-         history <- get_conversation_history(thread_id, user_id),
-         {:ok, ai_response} <-
-           AIContentGeneratorApi.generate_chat_response(
-             content,
-             context.contacts,
-             context.meetings,
-             context.updates,
-             history
-           ),
-         {:ok, assistant_message} <-
-           Chat.create_assistant_message(
-             thread_id,
-             ai_response.answer,
-             %{"meetings" => ai_response.sources},
-             mentions_referenced_in_content(formatted_mentions, ai_response.answer)
-           ) do
-      {:ok, %{user_message: user_message, assistant_message: assistant_message}}
+    case Chat.get_user_thread(thread_id, user_id) do
+      nil ->
+        {:error, :unauthorized}
+
+      _thread ->
+        with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
+             {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
+             history <- get_conversation_history(thread_id, user_id),
+             {:ok, ai_response} <-
+               AIContentGeneratorApi.generate_chat_response(
+                 content,
+                 context.contacts,
+                 context.meetings,
+                 context.updates,
+                 history
+               ),
+             {:ok, assistant_message} <-
+               Chat.create_assistant_message(
+                 thread_id,
+                 ai_response.answer,
+                 %{"meetings" => ai_response.sources},
+                 mentions_referenced_in_content(formatted_mentions, ai_response.answer)
+               ) do
+          {:ok, %{user_message: user_message, assistant_message: assistant_message}}
+        end
     end
   end
 
@@ -52,26 +58,32 @@ defmodule SocialScribe.ChatAssistant do
   def process_message_stream(thread_id, user_id, content, mentions, credentials, stream_callback) do
     formatted_mentions = format_mentions(mentions)
 
-    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
-         {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
-         history <- get_conversation_history(thread_id, user_id),
-         {:ok, ai_response} <-
-           AIContentGeneratorApi.generate_chat_response_stream(
-             content,
-             context.contacts,
-             context.meetings,
-             context.updates,
-             history,
-             stream_callback
-           ),
-         {:ok, assistant_message} <-
-           Chat.create_assistant_message(
-             thread_id,
-             ai_response.answer,
-             %{"meetings" => ai_response.sources},
-             mentions_referenced_in_content(formatted_mentions, ai_response.answer)
-           ) do
-      {:ok, %{user_message: user_message, assistant_message: assistant_message}}
+    case Chat.get_user_thread(thread_id, user_id) do
+      nil ->
+        {:error, :unauthorized}
+
+      _thread ->
+        with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
+             {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
+             history <- get_conversation_history(thread_id, user_id),
+             {:ok, ai_response} <-
+               AIContentGeneratorApi.generate_chat_response_stream(
+                 content,
+                 context.contacts,
+                 context.meetings,
+                 context.updates,
+                 history,
+                 stream_callback
+               ),
+             {:ok, assistant_message} <-
+               Chat.create_assistant_message(
+                 thread_id,
+                 ai_response.answer,
+                 %{"meetings" => ai_response.sources},
+                 mentions_referenced_in_content(formatted_mentions, ai_response.answer)
+               ) do
+          {:ok, %{user_message: user_message, assistant_message: assistant_message}}
+        end
     end
   end
 

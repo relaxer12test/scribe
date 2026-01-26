@@ -469,7 +469,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     thread = Chat.get_thread_with_messages(thread_id, socket.assigns.current_user.id)
 
     if thread do
-      grouped = Chat.get_messages_grouped_by_date(thread.id)
+      grouped = Chat.get_messages_grouped_by_date(thread.id, socket.assigns.current_user.id)
 
       {:noreply,
        socket
@@ -717,7 +717,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
   def handle_info({:stream_complete, thread_id, content, result}, socket) do
     case result do
       {:ok, _result} ->
-        grouped = Chat.get_messages_grouped_by_date(thread_id)
+        grouped = Chat.get_messages_grouped_by_date(thread_id, socket.assigns.current_user.id)
         threads = Chat.list_user_threads(socket.assigns.current_user.id)
 
         thread = Chat.get_user_thread(thread_id, socket.assigns.current_user.id)
@@ -829,7 +829,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     thread = Chat.get_thread_with_messages(thread_id, socket.assigns.current_user.id)
 
     if thread do
-      grouped = Chat.get_messages_grouped_by_date(thread.id)
+      grouped = Chat.get_messages_grouped_by_date(thread.id, socket.assigns.current_user.id)
       assign(socket, current_thread: thread, messages: grouped, active_tab: :chat)
     else
       assign(socket, current_thread: nil, messages: %{})

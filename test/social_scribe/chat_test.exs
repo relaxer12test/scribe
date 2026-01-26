@@ -139,12 +139,13 @@ defmodule SocialScribe.ChatTest do
       assert message.sources == sources
     end
 
-    test "get_messages_grouped_by_date/1 returns messages grouped by date" do
-      thread = chat_thread_fixture()
+    test "get_messages_grouped_by_date/2 returns messages grouped by date" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
       _message1 = chat_message_fixture(%{chat_thread_id: thread.id})
       _message2 = chat_message_fixture(%{chat_thread_id: thread.id})
 
-      grouped = Chat.get_messages_grouped_by_date(thread.id)
+      grouped = Chat.get_messages_grouped_by_date(thread.id, user.id)
       assert is_map(grouped)
       # All messages created today should be in today's group
       today = Date.to_string(Date.utc_today())
