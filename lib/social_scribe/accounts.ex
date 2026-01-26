@@ -355,6 +355,26 @@ defmodule SocialScribe.Accounts do
     }
   end
 
+  defp format_credential_attrs(user, %Auth{provider: :salesforce} = auth) do
+    refresh_token = auth.credentials.refresh_token
+
+    attrs = %{
+      user_id: user.id,
+      provider: to_string(auth.provider),
+      uid: auth.uid,
+      token: auth.credentials.token,
+      expires_at: salesforce_expires_at(auth),
+      reauth_required_at: nil,
+      email: auth.info.email
+    }
+
+    if is_binary(refresh_token) and refresh_token != "" do
+      Map.put(attrs, :refresh_token, refresh_token)
+    else
+      attrs
+    end
+  end
+
   defp format_credential_attrs(user, %Auth{credentials: %{refresh_token: nil}} = auth) do
     %{
       user_id: user.id,
@@ -382,6 +402,23 @@ defmodule SocialScribe.Accounts do
       reauth_required_at: nil,
       email: auth.info.email
     }
+  end
+
+  defp salesforce_expires_at(%Auth{} = auth) do
+    case auth.credentials.expires_at do
+      %DateTime{} = expires_at ->
+        expires_at
+
+      expires_at when is_integer(expires_at) ->
+        DateTime.from_unix!(expires_at)
+
+      _ ->
+        DateTime.add(DateTime.utc_now(), salesforce_token_ttl_seconds(), :second)
+    end
+  end
+
+  defp salesforce_token_ttl_seconds do
+    Application.get_env(:social_scribe, :salesforce_token_ttl_seconds, 7200)
   end
 
   @doc """

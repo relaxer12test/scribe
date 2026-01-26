@@ -47,6 +47,9 @@ config :ueberauth, Ueberauth.Strategy.Salesforce.OAuth,
   redirect_uri: System.get_env("SALESFORCE_REDIRECT_URI"),
   site: System.get_env("SALESFORCE_SITE") || "https://login.salesforce.com"
 
+config :social_scribe, :salesforce_token_ttl_seconds,
+  String.to_integer(System.get_env("SALESFORCE_TOKEN_TTL_SECONDS") || "7200")
+
 if System.get_env("PHX_SERVER") do
   config :social_scribe, SocialScribeWeb.Endpoint, server: true
 end

@@ -61,7 +61,7 @@ defmodule SocialScribe.SalesforceTokenRefresher do
       true ->
         case refresh_token(credential.refresh_token) do
           {:ok, response} ->
-            expires_in = response["expires_in"] || 3600
+            expires_in = salesforce_expires_in(response)
             refresh_token = response["refresh_token"] || credential.refresh_token
 
             attrs = %{
@@ -103,6 +103,26 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   defp missing_refresh_token?(%UserCredential{} = credential) do
     refresh_token = credential.refresh_token
     is_nil(refresh_token) || refresh_token == ""
+  end
+
+  defp salesforce_expires_in(response) do
+    case response["expires_in"] do
+      expires_in when is_integer(expires_in) and expires_in > 0 ->
+        expires_in
+
+      expires_in when is_binary(expires_in) ->
+        case Integer.parse(expires_in) do
+          {value, _} when value > 0 -> value
+          _ -> salesforce_default_expires_in()
+        end
+
+      _ ->
+        salesforce_default_expires_in()
+    end
+  end
+
+  defp salesforce_default_expires_in do
+    Application.get_env(:social_scribe, :salesforce_token_ttl_seconds, 7200)
   end
 
   defp reauth_required?(%UserCredential{} = credential) do
