@@ -131,25 +131,29 @@ defmodule SocialScribe.Chat do
   @doc """
   Create an assistant message with sources.
   """
-  def create_assistant_message(thread_id, content, sources \\ %{}) do
-    result =
-      create_message(%{
-        chat_thread_id: thread_id,
-        role: "assistant",
-        content: content,
-        sources: sources
-      })
+  def create_assistant_message(thread_id, content, sources \\ %{}, mentions \\ []) do
+    Repo.transaction(fn ->
+      case create_message(%{
+             chat_thread_id: thread_id,
+             role: "assistant",
+             content: content,
+             sources: sources
+           }) do
+        {:ok, message} ->
+          Enum.each(mentions, fn mention ->
+            create_mention(Map.put(mention, :chat_message_id, message.id))
+          end)
 
-    # Touch the thread's updated_at
-    case result do
-      {:ok, message} ->
-        thread = get_thread!(thread_id)
-        update_thread(thread, %{})
-        {:ok, message}
+          # Touch the thread's updated_at
+          thread = get_thread!(thread_id)
+          update_thread(thread, %{})
 
-      error ->
-        error
-    end
+          Repo.preload(message, :mentions)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """

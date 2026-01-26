@@ -30,6 +30,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
       |> assign(:mention_query, nil)
       |> assign(:sending, false)
       |> assign(:pending_message, nil)
+      |> assign(:pending_mentions, [])
       |> assign(:hubspot_credential, hubspot_credential)
       |> assign(:salesforce_credential, salesforce_credential)
       |> assign(:salesforce_reauth_required, salesforce_reauth_required)
@@ -120,7 +121,14 @@ defmodule SocialScribeWeb.ChatLive.Index do
           {:ok, thread} ->
             socket =
               socket
-              |> assign(current_thread: thread, sending: true, input_value: "", mentions: [], pending_message: content)
+              |> assign(
+                current_thread: thread,
+                sending: true,
+                input_value: "",
+                mentions: [],
+                pending_message: content,
+                pending_mentions: mentions
+              )
               |> push_event("update_chat_input", %{value: ""})
 
             send(self(), {:process_message, thread.id, content, mentions})
@@ -133,7 +141,13 @@ defmodule SocialScribeWeb.ChatLive.Index do
       true ->
         socket =
           socket
-          |> assign(sending: true, input_value: "", mentions: [], pending_message: content)
+          |> assign(
+            sending: true,
+            input_value: "",
+            mentions: [],
+            pending_message: content,
+            pending_mentions: mentions
+          )
           |> push_event("update_chat_input", %{value: ""})
 
         send(self(), {:process_message, socket.assigns.current_thread.id, content, mentions})
@@ -231,6 +245,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
            current_thread: thread,
            sending: false,
            pending_message: nil,
+           pending_mentions: [],
            salesforce_reauth_required: socket.assigns.salesforce_reauth_required
          )}
 
@@ -238,7 +253,12 @@ defmodule SocialScribeWeb.ChatLive.Index do
         {:noreply,
          socket
          |> put_flash(:error, "Reconnect Salesforce to keep CRM context in chat.")
-         |> assign(sending: false, pending_message: nil, salesforce_reauth_required: true)}
+         |> assign(
+           sending: false,
+           pending_message: nil,
+           pending_mentions: [],
+           salesforce_reauth_required: true
+         )}
 
       {:error, reason} ->
         Logger.error("Chat message processing failed: #{inspect(reason)}")
@@ -246,7 +266,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
         {:noreply,
          socket
          |> put_flash(:error, "Failed to process message. Please try again.")
-         |> assign(sending: false, pending_message: nil)}
+         |> assign(sending: false, pending_message: nil, pending_mentions: [])}
     end
   end
 
@@ -352,9 +372,176 @@ defmodule SocialScribeWeb.ChatLive.Index do
     message.sources && message.sources["meetings"] && length(message.sources["meetings"]) > 0
   end
 
-  defp render_content_with_mentions(content, _mentions) do
-    # For now, just return the content as-is
-    # Mentions are displayed inline in the text as @Name
-    content
+  defp render_content_with_mentions(content, mentions) when is_list(mentions) and length(mentions) > 0 do
+    escaped_content =
+      content
+      |> Phoenix.HTML.html_escape()
+      |> Phoenix.HTML.safe_to_string()
+
+    {with_placeholders, replacements} =
+      mentions
+      |> normalize_mentions()
+      |> Enum.with_index()
+      |> Enum.reduce({escaped_content, []}, fn {mention, idx}, {acc, replacements} ->
+        {updated, replacement} = replace_mention_with_placeholder(acc, mention, idx)
+        replacements =
+          case replacement do
+            nil -> replacements
+            _ -> [replacement | replacements]
+          end
+
+        {updated, replacements}
+      end)
+
+    rendered =
+      replacements
+      |> Enum.reverse()
+      |> Enum.reduce(with_placeholders, fn {placeholder, pill_html}, acc ->
+        String.replace(acc, placeholder, pill_html)
+      end)
+
+    Phoenix.HTML.raw(rendered)
   end
+  defp render_content_with_mentions(content, _mentions), do: content
+
+  defp normalize_mentions(mentions) do
+    normalized =
+      mentions
+      |> Enum.map(fn mention ->
+        %{
+          name: mention.contact_name || mention[:contact_name] || "",
+          provider: mention.crm_provider || mention[:crm_provider] || ""
+        }
+      end)
+      |> Enum.map(fn mention -> %{mention | name: String.trim(mention.name)} end)
+      |> Enum.filter(fn mention -> mention.name != "" end)
+      |> Enum.uniq_by(fn mention -> String.downcase(mention.name) end)
+
+    first_counts = name_part_counts(normalized, :first)
+    last_counts = name_part_counts(normalized, :last)
+
+    normalized
+    |> Enum.map(fn mention ->
+      {first, last} = mention_name_parts(mention.name)
+      variants =
+        mention_variants(mention.name, first, last, first_counts, last_counts)
+        |> Enum.sort_by(&String.length/1, :desc)
+      Map.put(mention, :variants, variants)
+    end)
+    |> Enum.sort_by(fn mention -> String.length(mention.name) end, :desc)
+  end
+
+  defp replace_mention_with_placeholder(content, %{name: name, provider: provider} = mention, idx) do
+    variants =
+      mention
+      |> Map.get(:variants, mention_name_variants(name))
+      |> Enum.sort_by(&String.length/1, :desc)
+
+    case variants do
+      [] ->
+        {content, nil}
+
+      _ ->
+        pattern =
+          variants
+          |> Enum.map(fn variant ->
+            variant
+            |> Phoenix.HTML.html_escape()
+            |> Phoenix.HTML.safe_to_string()
+            |> Regex.escape()
+          end)
+          |> Enum.join("|")
+
+        placeholder = "__MENTION_PILL_#{idx}__"
+        regex = Regex.compile!("(?:@(?:#{pattern})|\\b(?:#{pattern})\\b)(?!@)", "i")
+        updated = Regex.replace(regex, content, placeholder)
+        {updated, {placeholder, mention_pill_html(name, provider)}}
+    end
+  end
+
+  defp mention_name_variants(name) when is_binary(name) and name != "" do
+    [name]
+  end
+  defp mention_name_variants(_), do: []
+
+  defp mention_name_parts(name) do
+    parts = String.split(name, ~r/\s+/, trim: true)
+
+    case parts do
+      [] -> {"", ""}
+      [single] -> {single, single}
+      _ -> {List.first(parts), List.last(parts)}
+    end
+  end
+
+  defp mention_variants(full, first, last, first_counts, last_counts) do
+    variants = [full]
+
+    variants =
+      if first != "" and Map.get(first_counts, String.downcase(first), 0) == 1 do
+        [first | variants]
+      else
+        variants
+      end
+
+    variants =
+      if last != "" and last != first and Map.get(last_counts, String.downcase(last), 0) == 1 do
+        [last | variants]
+      else
+        variants
+      end
+
+    Enum.uniq(variants)
+  end
+
+  defp name_part_counts(mentions, part) do
+    mentions
+    |> Enum.map(fn mention ->
+      {first, last} = mention_name_parts(mention.name)
+      case part do
+        :first -> first
+        :last -> last
+      end
+    end)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.frequencies()
+  end
+
+  defp mention_pill_html(name, provider) do
+    safe_name = Phoenix.HTML.html_escape(name) |> Phoenix.HTML.safe_to_string()
+    safe_initials = Phoenix.HTML.html_escape(get_mention_initials(name)) |> Phoenix.HTML.safe_to_string()
+    safe_provider = Phoenix.HTML.html_escape(provider_letter(provider)) |> Phoenix.HTML.safe_to_string()
+
+    badge_class =
+      case provider do
+        "hubspot" -> "bg-orange-500"
+        "salesforce" -> "bg-blue-500"
+        _ -> ""
+      end
+
+    badge_classes =
+      if badge_class == "" do
+        "inline-mention-pill-badge"
+      else
+        "inline-mention-pill-badge #{badge_class}"
+      end
+
+    "<span class=\"inline-mention-pill\"><span class=\"inline-mention-pill-avatar\">#{safe_initials}<span class=\"#{badge_classes}\">#{safe_provider}</span></span><span class=\"inline-mention-pill-name\">#{safe_name}</span></span>"
+  end
+
+  defp get_mention_initials(name) when is_binary(name) do
+    parts = String.split(name, " ", trim: true)
+
+    case parts do
+      [first | [last | _]] -> "#{String.first(first) || ""}#{String.first(last) || ""}"
+      [first | _] -> String.first(first) || ""
+      _ -> ""
+    end
+  end
+  defp get_mention_initials(_), do: ""
+
+  defp provider_letter("hubspot"), do: "H"
+  defp provider_letter("salesforce"), do: "S"
+  defp provider_letter(_), do: ""
 end

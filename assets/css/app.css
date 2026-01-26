@@ -230,9 +230,10 @@
 
 .chat-input-editable {
   outline: none;
-  line-height: 1.5;
+  line-height: 1.35;
 }
 
+.chat-input-editable:empty::before,
 .chat-input-editable.is-empty::before {
   content: attr(data-placeholder);
   color: #94a3b8;

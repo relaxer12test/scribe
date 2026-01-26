@@ -19,8 +19,10 @@ defmodule SocialScribe.ChatAssistant do
   Creates the user message, fetches context, calls AI, and saves the assistant response.
   """
   def process_message(thread_id, user_id, content, mentions, credentials) do
-    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, format_mentions(mentions)),
-         {:ok, context} <- build_context(user_id, mentions, credentials),
+    formatted_mentions = format_mentions(mentions)
+
+    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
+         {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
          history <- get_conversation_history(thread_id, user_id),
          {:ok, ai_response} <-
            AIContentGeneratorApi.generate_chat_response(
@@ -34,7 +36,8 @@ defmodule SocialScribe.ChatAssistant do
            Chat.create_assistant_message(
              thread_id,
              ai_response.answer,
-             %{"meetings" => ai_response.sources}
+             %{"meetings" => ai_response.sources},
+             mentions_referenced_in_content(formatted_mentions, ai_response.answer)
            ) do
       {:ok, %{user_message: user_message, assistant_message: assistant_message}}
     end
@@ -47,8 +50,10 @@ defmodule SocialScribe.ChatAssistant do
   The callback receives text chunks as they arrive.
   """
   def process_message_stream(thread_id, user_id, content, mentions, credentials, stream_callback) do
-    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, format_mentions(mentions)),
-         {:ok, context} <- build_context(user_id, mentions, credentials),
+    formatted_mentions = format_mentions(mentions)
+
+    with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
+         {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
          history <- get_conversation_history(thread_id, user_id),
          {:ok, ai_response} <-
            AIContentGeneratorApi.generate_chat_response_stream(
@@ -63,7 +68,8 @@ defmodule SocialScribe.ChatAssistant do
            Chat.create_assistant_message(
              thread_id,
              ai_response.answer,
-             %{"meetings" => ai_response.sources}
+             %{"meetings" => ai_response.sources},
+             mentions_referenced_in_content(formatted_mentions, ai_response.answer)
            ) do
       {:ok, %{user_message: user_message, assistant_message: assistant_message}}
     end
@@ -149,6 +155,106 @@ defmodule SocialScribe.ChatAssistant do
   end
 
   defp format_mentions(_), do: []
+
+  defp mentions_referenced_in_content(mentions, content)
+       when is_list(mentions) and is_binary(content) do
+    mentions
+    |> normalize_mentions_for_matching()
+    |> Enum.filter(fn mention ->
+      mention_variants_in_content?(content, mention.variants)
+    end)
+    |> Enum.map(&Map.drop(&1, [:variants]))
+  end
+
+  defp mentions_referenced_in_content(_, _), do: []
+
+  defp mention_variants_in_content?(content, variants) do
+    case variants do
+      [] ->
+        false
+
+      _ ->
+        pattern =
+          variants
+          |> Enum.map(&Regex.escape/1)
+          |> Enum.join("|")
+
+        regex = Regex.compile!("(?:@(?:#{pattern})|\\b(?:#{pattern})\\b)(?!@)", "i")
+        Regex.match?(regex, content)
+    end
+  end
+
+  defp normalize_mentions_for_matching(mentions) do
+    normalized =
+      mentions
+      |> Enum.map(fn mention ->
+        %{
+          contact_id: mention[:contact_id] || mention["contact_id"],
+          contact_name: mention[:contact_name] || mention["contact_name"] || "",
+          crm_provider: mention[:crm_provider] || mention["crm_provider"]
+        }
+      end)
+      |> Enum.map(fn mention -> %{mention | contact_name: String.trim(mention.contact_name)} end)
+      |> Enum.filter(fn mention -> mention.contact_name != "" end)
+      |> Enum.uniq_by(fn mention -> String.downcase(mention.contact_name) end)
+
+    first_counts = name_part_counts(normalized, :first)
+    last_counts = name_part_counts(normalized, :last)
+
+    normalized
+    |> Enum.map(fn mention ->
+      name = mention.contact_name
+      {first, last} = mention_name_parts(name)
+      variants = mention_variants(name, first, last, first_counts, last_counts)
+      Map.put(mention, :variants, variants)
+    end)
+  end
+
+  defp name_part_counts(mentions, part) do
+    mentions
+    |> Enum.map(fn mention ->
+      name = mention.contact_name
+      {first, last} = mention_name_parts(name)
+
+      case part do
+        :first -> first
+        :last -> last
+      end
+    end)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.frequencies()
+  end
+
+  defp mention_name_parts(name) do
+    parts = String.split(name, ~r/\s+/, trim: true)
+
+    case parts do
+      [] -> {"", ""}
+      [single] -> {single, single}
+      _ -> {List.first(parts), List.last(parts)}
+    end
+  end
+
+  defp mention_variants(full, first, last, first_counts, last_counts) do
+    variants = [full]
+
+    variants =
+      if first != "" and Map.get(first_counts, String.downcase(first), 0) == 1 do
+        [first | variants]
+      else
+        variants
+      end
+
+    variants =
+      if last != "" and last != first and Map.get(last_counts, String.downcase(last), 0) == 1 do
+        [last | variants]
+      else
+        variants
+      end
+
+    Enum.uniq(variants)
+  end
 
   defp build_context(user_id, mentions, credentials) do
     with {:ok, contacts} <- fetch_mentioned_contacts(mentions, credentials) do
