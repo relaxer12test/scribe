@@ -258,6 +258,11 @@ defmodule SocialScribe.Workers.BotStatusPollerTest do
         {:error, :transcript_fetch_failed}
       end)
 
+      # Expect API call to get participants (avoid real call + warning)
+      expect(RecallApiMock, :get_bot_participants, fn "bot-transcript-error-111" ->
+        {:ok, %Tesla.Env{body: []}}
+      end)
+
       assert BotStatusPoller.perform(%Oban.Job{}) == :ok
 
       # Bot status should still be "done" because the get_bot call succeeded

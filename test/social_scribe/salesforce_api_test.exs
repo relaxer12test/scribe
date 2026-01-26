@@ -3,6 +3,7 @@ defmodule SocialScribe.SalesforceApiTest do
 
   import SocialScribe.AccountsFixtures
 
+  alias SocialScribe.Accounts
   alias SocialScribe.SalesforceApi
 
   setup do
@@ -135,6 +136,153 @@ defmodule SocialScribe.SalesforceApiTest do
     end
   end
 
+  describe "list_contacts/2" do
+    test "returns formatted contacts and respects limit" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+
+      Tesla.Mock.mock(fn env ->
+        cond do
+          env.url == "https://salesforce.test/services/oauth2/userinfo" ->
+            %Tesla.Env{status: 200, body: %{"instance_url" => "https://instance.salesforce.test"}}
+
+          String.starts_with?(env.url, "https://instance.salesforce.test/services/data/v58.0/query") ->
+            %URI{query: query} = URI.parse(env.url)
+            %{"q" => soql} = URI.decode_query(query)
+
+            assert String.contains?(soql, "FROM Contact")
+            assert String.contains?(soql, "LIMIT 5")
+
+            %Tesla.Env{
+              status: 200,
+              body: %{
+                "records" => [
+                  %{
+                    "Id" => "0032",
+                    "FirstName" => "Sam",
+                    "LastName" => "Jones",
+                    "Email" => "sam@example.com"
+                  }
+                ]
+              }
+            }
+
+          true ->
+            flunk("unexpected request: #{env.method} #{env.url}")
+        end
+      end)
+
+      assert {:ok, [contact]} = SalesforceApi.list_contacts(credential, 5)
+      assert contact.id == "0032"
+      assert contact.display_name == "Sam Jones"
+      assert contact.email == "sam@example.com"
+    end
+
+    test "uses instance_url derived from urls payload" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+
+      Tesla.Mock.mock(fn env ->
+        cond do
+          env.url == "https://salesforce.test/services/oauth2/userinfo" ->
+            %Tesla.Env{
+              status: 200,
+              body: %{
+                "urls" => %{
+                  "rest" => "https://instance.salesforce.test/services/data/v58.0"
+                }
+              }
+            }
+
+          String.starts_with?(env.url, "https://instance.salesforce.test/services/data/v58.0/query") ->
+            %Tesla.Env{status: 200, body: %{"records" => []}}
+
+          true ->
+            flunk("unexpected request: #{env.method} #{env.url}")
+        end
+      end)
+
+      assert {:ok, []} = SalesforceApi.list_contacts(credential, 10)
+    end
+  end
+
+  describe "token refresh handling" do
+    test "refreshes and retries when session is invalid" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          token: "old-token",
+          refresh_token: "refresh-token",
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      Tesla.Mock.mock(fn env ->
+        auth = auth_header(env)
+
+        cond do
+          env.url == "https://salesforce.test/services/oauth2/userinfo" ->
+            %Tesla.Env{status: 200, body: %{"instance_url" => "https://instance.salesforce.test"}}
+
+          env.method == :post && env.url == "https://salesforce.test/services/oauth2/token" ->
+            body =
+              case env.body do
+                body when is_binary(body) -> Plug.Conn.Query.decode(body)
+                body when is_map(body) -> body
+                _ -> %{}
+              end
+
+            assert body["refresh_token"] == "refresh-token"
+
+            %Tesla.Env{
+              status: 200,
+              body: %{
+                "access_token" => "new-token",
+                "refresh_token" => "new-refresh",
+                "expires_in" => 3600
+              }
+            }
+
+          env.method == :get &&
+              String.starts_with?(env.url, "https://instance.salesforce.test/services/data/v58.0/query") &&
+              auth == "Bearer old-token" ->
+            %Tesla.Env{
+              status: 401,
+              body: %{"errorCode" => "INVALID_SESSION_ID", "message" => "Session expired"}
+            }
+
+          env.method == :get &&
+              String.starts_with?(env.url, "https://instance.salesforce.test/services/data/v58.0/query") &&
+              auth == "Bearer new-token" ->
+            %Tesla.Env{
+              status: 200,
+              body: %{
+                "records" => [
+                  %{
+                    "Id" => "0039",
+                    "FirstName" => "Refreshed",
+                    "LastName" => "User",
+                    "Email" => "refresh@example.com"
+                  }
+                ]
+              }
+            }
+
+          true ->
+            flunk("unexpected request: #{env.method} #{env.url}")
+        end
+      end)
+
+      assert {:ok, [contact]} = SalesforceApi.search_contacts(credential, "Refreshed")
+      assert contact.id == "0039"
+
+      updated = Accounts.get_user_credential!(credential.id)
+      assert updated.token == "new-token"
+      assert updated.refresh_token == "new-refresh"
+    end
+  end
+
   describe "get_contact/2" do
     test "returns not_found when no records are returned" do
       user = user_fixture()
@@ -207,5 +355,11 @@ defmodule SocialScribe.SalesforceApiTest do
       assert info.org_id == "org-123"
       assert info.user_id == "user-456"
     end
+  end
+
+  defp auth_header(env) do
+    env.headers
+    |> Enum.into(%{}, fn {k, v} -> {String.downcase(k), v} end)
+    |> Map.get("authorization")
   end
 end

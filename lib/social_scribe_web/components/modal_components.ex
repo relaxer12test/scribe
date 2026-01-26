@@ -330,6 +330,8 @@ defmodule SocialScribeWeb.ModalComponents do
       <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} />
   """
   attr :suggestion, :map, required: true
+  attr :myself, :any, default: nil
+  attr :field_options, :list, default: []
   attr :class, :string, default: nil
 
   def suggestion_card(assigns) do
@@ -403,6 +405,7 @@ defmodule SocialScribeWeb.ModalComponents do
             <input
               type="text"
               name={"values[#{@suggestion.field}]"}
+              id={"suggestion-value-#{@suggestion.field}"}
               value={@suggestion.new_value}
               class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -410,9 +413,32 @@ defmodule SocialScribeWeb.ModalComponents do
         </div>
 
         <div class="mt-3 grid grid-cols-[1fr_32px_1fr] items-start gap-6">
-          <button type="button" class="text-xs text-hubspot-link hover:text-hubspot-link-hover font-medium justify-self-start">
-            Update mapping
-          </button>
+          <div class="space-y-2">
+            <button
+              type="button"
+              phx-click={JS.push("toggle_mapping", value: %{field: @suggestion.field}, target: @myself)}
+              class="text-xs text-hubspot-link hover:text-hubspot-link-hover font-medium"
+            >
+              <%= if @suggestion[:mapping_open] do %>
+                Close mapping
+              <% else %>
+                Update mapping
+              <% end %>
+            </button>
+            <div :if={@suggestion[:mapping_open] && @field_options != []} class="flex items-center gap-2">
+              <span class="text-xs text-slate-500">Map to</span>
+              <select
+                id={"suggestion-mapping-#{@suggestion.field}"}
+                name={"mapping[#{@suggestion.field}]"}
+                class="text-xs bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-700"
+                aria-label="Select field to update"
+              >
+                <option :for={{label, value} <- @field_options} value={value} selected={value == @suggestion.field}>
+                  {label}
+                </option>
+              </select>
+            </div>
+          </div>
           <span></span>
           <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">Found in transcript<span
               class="text-hubspot-link hover:underline cursor-help"

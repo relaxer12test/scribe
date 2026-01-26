@@ -336,6 +336,8 @@ defmodule SocialScribe.SalesforceApi do
     end
   end
 
+  defp base_from_url(_), do: nil
+
   # Format a Salesforce contact response into a cleaner structure
   defp format_contact(%{"Id" => id} = record) do
     fields = %{

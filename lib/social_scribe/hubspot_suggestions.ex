@@ -25,6 +25,16 @@ defmodule SocialScribe.HubspotSuggestions do
     "linkedin_url" => "LinkedIn",
     "twitter_handle" => "Twitter"
   }
+  @field_options (
+                    @field_labels
+                    |> Enum.map(fn {field, label} -> {label, field} end)
+                    |> Enum.sort_by(fn {label, _field} -> label end)
+                  )
+
+  def field_options, do: @field_options
+  def field_label(field) when is_atom(field), do: field |> Atom.to_string() |> field_label()
+  def field_label(field) when is_binary(field), do: Map.get(@field_labels, field, field)
+  def field_label(_), do: ""
 
   @doc """
   Generates suggested updates for a HubSpot contact based on a meeting transcript.
@@ -55,6 +65,7 @@ defmodule SocialScribe.HubspotSuggestions do
             person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
             context: suggestion.context,
             apply: true,
+            mapping_open: false,
             has_change: current_value != suggestion.value
           }
         end)
@@ -83,6 +94,7 @@ defmodule SocialScribe.HubspotSuggestions do
               context: Map.get(suggestion, :context),
               timestamp: Map.get(suggestion, :timestamp),
               apply: true,
+              mapping_open: false,
               has_change: true
             }
           end)

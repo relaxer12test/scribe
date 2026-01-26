@@ -2,6 +2,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   use SocialScribeWeb, :live_component
 
   import SocialScribeWeb.ModalComponents
+  alias SocialScribe.SalesforceSuggestions
 
   @impl true
   def render(assigns) do
@@ -67,7 +68,10 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   attr :patch, :string, required: true
 
   defp suggestions_section(assigns) do
-    assigns = assign(assigns, :selected_count, Enum.count(assigns.suggestions, & &1.apply))
+    assigns =
+      assigns
+      |> assign(:selected_count, Enum.count(assigns.suggestions, & &1.apply))
+      |> assign(:field_options, SalesforceSuggestions.field_options())
 
     ~H"""
     <div class="space-y-4">
@@ -85,7 +89,12 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
         <% else %>
           <form phx-submit="apply_updates" phx-change="toggle_suggestion" phx-target={@myself}>
             <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <.suggestion_card :for={suggestion <- @suggestions} suggestion={suggestion} />
+              <.suggestion_card
+                :for={suggestion <- @suggestions}
+                suggestion={suggestion}
+                field_options={@field_options}
+                myself={@myself}
+              />
             </div>
 
             <.modal_footer
@@ -238,19 +247,47 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   def handle_event("toggle_suggestion", params, socket) do
     applied_fields = Map.get(params, "apply", %{})
     values = Map.get(params, "values", %{})
-    checked_fields = Map.keys(applied_fields)
+    mapping = Map.get(params, "mapping", %{})
+    checked_fields = remap_apply_fields(applied_fields, mapping)
+    mapped_values = remap_values(values, mapping)
 
     updated_suggestions =
       Enum.map(socket.assigns.suggestions, fn suggestion ->
-        apply? = suggestion.field in checked_fields
+        old_field = suggestion.field
+        new_field = Map.get(mapping, old_field, old_field)
+        mapping_changed = old_field != new_field
+        apply? = new_field in checked_fields
+        new_value = Map.get(mapped_values, new_field, suggestion.new_value)
 
         suggestion =
-          case Map.get(values, suggestion.field) do
-            nil -> suggestion
-            new_value -> %{suggestion | new_value: new_value}
+          if mapping_changed do
+            %{
+              suggestion
+              | field: new_field,
+                label: SalesforceSuggestions.field_label(new_field),
+                current_value: contact_field_value(socket.assigns.selected_contact, new_field),
+                mapping_open: false
+            }
+          else
+            suggestion
           end
 
-        %{suggestion | apply: apply?}
+        %{suggestion | apply: apply?, new_value: new_value}
+      end)
+
+    {:noreply, assign(socket, suggestions: updated_suggestions)}
+  end
+
+  @impl true
+  def handle_event("toggle_mapping", %{"field" => field}, socket) do
+    updated_suggestions =
+      Enum.map(socket.assigns.suggestions, fn suggestion ->
+        if suggestion.field == field do
+          mapping_open = !Map.get(suggestion, :mapping_open, false)
+          %{suggestion | apply: true, mapping_open: mapping_open}
+        else
+          Map.put(suggestion, :mapping_open, false)
+        end
       end)
 
     {:noreply, assign(socket, suggestions: updated_suggestions)}
@@ -279,4 +316,22 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   def handle_event("apply_updates", _params, socket) do
     {:noreply, assign(socket, error: "Please select at least one field to update")}
   end
+
+  defp remap_apply_fields(applied_fields, mapping) do
+    applied_fields
+    |> Map.keys()
+    |> Enum.map(fn field -> Map.get(mapping, field, field) end)
+  end
+
+  defp remap_values(values, mapping) do
+    Enum.reduce(values, %{}, fn {field, value}, acc ->
+      Map.put(acc, Map.get(mapping, field, field), value)
+    end)
+  end
+
+  defp contact_field_value(contact, field) when is_map(contact) and is_binary(field) do
+    Map.get(contact, field)
+  end
+
+  defp contact_field_value(_, _), do: nil
 end

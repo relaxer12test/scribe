@@ -105,6 +105,22 @@ defmodule SocialScribe.MeetingsTest do
                ])
     end
 
+    test "list_user_meeting_items/1 returns recall bots with meeting preloaded" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+      meeting = meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+      _participant = meeting_participant_fixture(%{meeting_id: meeting.id})
+
+      items = Meetings.list_user_meeting_items(user)
+
+      assert length(items) == 1
+      [item] = items
+      assert item.id == recall_bot.id
+      assert item.meeting.id == meeting.id
+      assert item.calendar_event.id == calendar_event.id
+    end
+
     test "get_meeting_with_details/1 returns the meeting with its details preloaded" do
       meeting = meeting_fixture()
 

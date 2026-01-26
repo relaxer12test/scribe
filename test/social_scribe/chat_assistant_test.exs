@@ -82,6 +82,80 @@ defmodule SocialScribe.ChatAssistantTest do
                )
     end
 
+    test "stores mention references only when they appear in the answer" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+
+      mentions = [
+        %{contact_id: "003", contact_name: "Pat Doe", crm_provider: "salesforce"},
+        %{contact_id: "hs1", contact_name: "Alex Roe", crm_provider: "hubspot"}
+      ]
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response, fn _query, _contacts, _meetings, _crm_updates, _history ->
+        {:ok, %{answer: "Pat Doe said hello.", sources: []}}
+      end)
+
+      assert {:ok, %{assistant_message: assistant_message}} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "Summarize",
+                 mentions,
+                 %{hubspot: nil, salesforce: nil}
+               )
+
+      assert length(assistant_message.mentions) == 1
+      assert hd(assistant_message.mentions).contact_id == "003"
+    end
+
+    test "filters CRM updates to only mentioned contacts" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+
+      mention = %{contact_id: "003", contact_name: "Pat Doe", crm_provider: "salesforce"}
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:get_contact, fn ^credential, "003" ->
+        {:ok, %{id: "003", firstname: "Pat", lastname: "Doe", email: "pat@example.com"}}
+      end)
+
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      meeting = meeting_fixture(%{calendar_event_id: calendar_event.id})
+      meeting_transcript_fixture(%{meeting_id: meeting.id, content: %{"data" => [%{"speaker" => "Pat", "words" => []}]}})
+
+      _matching_update =
+        crm_contact_update_fixture(%{
+          meeting_id: meeting.id,
+          crm_provider: "salesforce",
+          contact_id: "003"
+        })
+
+      _other_update =
+        crm_contact_update_fixture(%{
+          meeting_id: meeting.id,
+          crm_provider: "salesforce",
+          contact_id: "999"
+        })
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response, fn _query, _contacts, _meetings, crm_updates, _history ->
+        assert Enum.any?(crm_updates, &(&1.contact_id == "003"))
+        refute Enum.any?(crm_updates, &(&1.contact_id == "999"))
+        {:ok, %{answer: "Found updates.", sources: []}}
+      end)
+
+      assert {:ok, _result} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "Any updates?",
+                 [mention],
+                 %{hubspot: nil, salesforce: credential}
+               )
+    end
+
     test "filters meetings to those mentioning the contact" do
       user = user_fixture()
       thread = chat_thread_fixture(%{user_id: user.id})
@@ -174,6 +248,47 @@ defmodule SocialScribe.ChatAssistantTest do
                  [mention],
                  %{hubspot: nil, salesforce: credential}
                )
+    end
+  end
+
+  describe "process_message_stream/6" do
+    test "streams response chunks and persists messages" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+
+      stream_callback = fn chunk -> send(self(), {:chunk, chunk}) end
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response_stream, fn query, contacts, meetings, crm_updates, history, callback ->
+        assert query == "Hello"
+        assert contacts == []
+        assert meetings == []
+        assert crm_updates == []
+        assert history == [%{role: "user", content: "Hello"}]
+
+        callback.("Hi ")
+        callback.("there")
+
+        {:ok, %{answer: "Hi there", sources: []}}
+      end)
+
+      assert {:ok, %{assistant_message: assistant_message}} =
+               ChatAssistant.process_message_stream(
+                 thread.id,
+                 user.id,
+                 "Hello",
+                 [],
+                 %{hubspot: nil, salesforce: nil},
+                 stream_callback
+               )
+
+      assert_receive {:chunk, "Hi "}
+      assert_receive {:chunk, "there"}
+
+      assert assistant_message.content == "Hi there"
+
+      thread = Chat.get_thread_with_messages(thread.id, user.id)
+      assert length(thread.chat_messages) == 2
     end
   end
 

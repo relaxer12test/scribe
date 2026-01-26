@@ -285,6 +285,16 @@ defmodule SocialScribe.AccountsTest do
       assert updated_credential.refresh_token == "existing_refresh"
     end
 
+    test "mark_user_credential_reauth_required/1 stamps reauth_required_at" do
+      user_credential = user_credential_fixture(%{reauth_required_at: nil})
+
+      assert {:ok, updated} = Accounts.mark_user_credential_reauth_required(user_credential)
+      assert updated.reauth_required_at
+
+      persisted = Accounts.get_user_credential!(user_credential.id)
+      assert persisted.reauth_required_at
+    end
+
     test "delete_user_credential/1 deletes the user_credential" do
       user_credential = user_credential_fixture()
       assert {:ok, %UserCredential{}} = Accounts.delete_user_credential(user_credential)
