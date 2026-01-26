@@ -34,8 +34,10 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         |> assign(:mention_chips, [])
         |> assign(:mention_search_results, [])
         |> assign(:mention_query, nil)
+        |> assign(:searching_contacts, false)
         |> assign(:sending, false)
         |> assign(:pending_message, nil)
+        |> assign(:pending_chips, [])
         |> assign(:streaming, false)
         |> assign(:streaming_content, "")
         |> assign(:hubspot_credential, hubspot_credential)
@@ -98,52 +100,51 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         class="fixed top-0 right-0 h-full w-[28rem] bg-white shadow-2xl z-50 flex flex-col chat-sidebar-enter"
       >
         <!-- Header -->
-        <div class="bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-4 flex items-center justify-between flex-shrink-0">
-          <h2 class="text-white font-semibold text-lg flex items-center gap-2">
-            <.icon name="hero-sparkles" class="h-5 w-5" />
+        <div class="px-5 py-4 flex items-center justify-between flex-shrink-0 border-b border-slate-100">
+          <h2 class="text-slate-900 font-semibold text-lg">
             Ask Anything
           </h2>
-          <div class="flex items-center gap-1">
-            <button
-              phx-click="new_chat"
-              class="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="New conversation"
-            >
-              <.icon name="hero-plus" class="h-5 w-5" />
-            </button>
-            <button
-              phx-click="close_bubble"
-              class="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="Close (Esc)"
-            >
-              <.icon name="hero-x-mark" class="h-5 w-5" />
-            </button>
-          </div>
+          <button
+            phx-click="close_bubble"
+            class="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            title="Expand"
+          >
+            <.icon name="hero-chevron-double-right" class="h-5 w-5" />
+          </button>
         </div>
 
         <!-- Tabs -->
-        <div class="border-b border-slate-200 px-5 flex bg-slate-50 flex-shrink-0">
+        <div class="px-5 flex items-center justify-between flex-shrink-0">
+          <div class="flex">
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="chat"
+              class={[
+                "px-3 py-3 text-sm font-medium transition-colors",
+                @active_tab == :chat && "text-slate-900",
+                @active_tab != :chat && "text-slate-400 hover:text-slate-600"
+              ]}
+            >
+              Chat
+            </button>
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="history"
+              class={[
+                "px-3 py-3 text-sm font-medium transition-colors",
+                @active_tab == :history && "text-slate-900",
+                @active_tab != :history && "text-slate-400 hover:text-slate-600"
+              ]}
+            >
+              History
+            </button>
+          </div>
           <button
-            phx-click="switch_tab"
-            phx-value-tab="chat"
-            class={[
-              "px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
-              @active_tab == :chat && "border-indigo-600 text-indigo-600",
-              @active_tab != :chat && "border-transparent text-slate-500 hover:text-slate-700"
-            ]}
+            phx-click="new_chat"
+            class="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            title="New conversation"
           >
-            Chat
-          </button>
-          <button
-            phx-click="switch_tab"
-            phx-value-tab="history"
-            class={[
-              "px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
-              @active_tab == :history && "border-indigo-600 text-indigo-600",
-              @active_tab != :history && "border-transparent text-slate-500 hover:text-slate-700"
-            ]}
-          >
-            History
+            <.icon name="hero-plus" class="h-5 w-5" />
           </button>
         </div>
 
@@ -170,108 +171,75 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         <!-- Content Area - scrollable -->
         <div class="flex-1 overflow-y-auto min-h-0">
           <%= if @active_tab == :chat do %>
-            <div class="p-5 space-y-4" id="chat-messages">
+            <div class="p-5 space-y-5" id="chat-messages">
               <!-- Welcome message -->
               <%= if is_nil(@current_thread) || map_size(@messages) == 0 do %>
-                <div class="flex gap-3">
-                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <.icon name="hero-sparkles" class="h-5 w-5 text-indigo-600" />
-                  </div>
-                  <div class="bg-slate-100 rounded-2xl px-4 py-3 max-w-sm">
-                    <p class="text-sm text-slate-700">
-                      Ask me anything about your meetings and CRM contacts! Use <span class="font-medium">@</span> to mention a contact for context.
-                    </p>
-                  </div>
+                <div class="text-sm text-slate-600 leading-relaxed">
+                  I can answer questions about your meetings and data – just ask!
                 </div>
               <% else %>
                 <!-- Messages grouped by date -->
                 <%= for {date, msgs} <- @messages do %>
-                  <div class="flex items-center gap-4 py-2">
-                    <div class="flex-1 border-t border-slate-200"></div>
-                    <span class="text-xs text-slate-400 font-medium">{format_date(date)}</span>
-                    <div class="flex-1 border-t border-slate-200"></div>
+                  <!-- Date/time divider -->
+                  <div class="flex items-center justify-center py-2">
+                    <span class="text-xs text-slate-400">{format_date_with_time(date, List.first(msgs))}</span>
                   </div>
 
                   <%= for msg <- msgs do %>
-                    <div class={["flex gap-3", msg.role == "user" && "flex-row-reverse"]}>
-                      <div class="flex-shrink-0">
-                        <%= if msg.role == "user" do %>
-                          <div class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-medium">
-                            {String.first(@current_user.email) |> String.upcase()}
-                          </div>
-                        <% else %>
-                          <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <.icon name="hero-sparkles" class="h-5 w-5 text-indigo-600" />
-                          </div>
-                        <% end %>
+                    <%= if msg.role == "user" do %>
+                      <!-- User message - gray bubble, right aligned -->
+                      <div class="flex justify-end">
+                        <div class="rounded-2xl px-4 py-3 max-w-[85%] bg-slate-100 text-slate-800">
+                          <p class="text-sm leading-relaxed"><%= render_content_with_inline_mentions(msg.content, msg.mentions) %></p>
+                        </div>
                       </div>
-
-                      <div class={[
-                        "rounded-2xl px-4 py-3 max-w-sm",
-                        msg.role == "user" && "bg-indigo-600 text-white",
-                        msg.role == "assistant" && "bg-slate-100 text-slate-700"
-                      ]}>
-                        <p class="text-sm whitespace-pre-wrap">{render_content_with_chips(msg.content, msg.mentions)}</p>
+                    <% else %>
+                      <!-- AI message - no bubble, left aligned -->
+                      <div class="space-y-2">
+                        <div class="text-sm text-slate-700 leading-relaxed">
+                          <%= render_content_with_inline_mentions(msg.content, msg.mentions) %>
+                        </div>
 
                         <!-- Sources -->
-                        <%= if msg.role == "assistant" && has_sources?(msg) do %>
-                          <div class="mt-3 pt-3 border-t border-slate-200/50">
-                            <p class="text-xs font-medium text-slate-500 mb-2">Sources</p>
-                            <div class="space-y-1">
-                              <%= for source <- msg.sources["meetings"] || [] do %>
-                                <.link
-                                  href={~p"/dashboard/meetings/#{source["meeting_id"]}"}
-                                  class="flex items-center gap-2 text-xs text-indigo-600 hover:underline"
-                                >
-                                  <.icon name="hero-document-text" class="h-3.5 w-3.5" />
-                                  <span class="truncate">{source["title"]}</span>
-                                </.link>
-                              <% end %>
-                            </div>
+                        <%= if has_sources?(msg) do %>
+                          <div class="flex items-center gap-1.5 pt-1">
+                            <span class="text-xs text-slate-400">Sources</span>
+                            <%= for source <- msg.sources["meetings"] || [] do %>
+                              <.link
+                                href={~p"/dashboard/meetings/#{source["meeting_id"]}"}
+                                class="inline-flex items-center"
+                                title={source["title"]}
+                              >
+                                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800">
+                                  <.icon name="hero-microphone" class="h-3 w-3 text-white" />
+                                </span>
+                              </.link>
+                            <% end %>
                           </div>
                         <% end %>
                       </div>
-                    </div>
+                    <% end %>
                   <% end %>
                 <% end %>
               <% end %>
 
-              <!-- Pending message -->
-              <div :if={@sending && @pending_message} class="flex gap-3 flex-row-reverse">
-                <div class="flex-shrink-0">
-                  <div class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-medium">
-                    {String.first(@current_user.email) |> String.upcase()}
-                  </div>
-                </div>
-                <div class="rounded-2xl px-4 py-3 max-w-sm bg-indigo-600 text-white">
-                  <p class="text-sm whitespace-pre-wrap">{@pending_message}</p>
+              <!-- Pending message (user's message while sending) -->
+              <div :if={@sending && @pending_message} class="flex justify-end">
+                <div class="rounded-2xl px-4 py-3 max-w-[85%] bg-slate-100 text-slate-800">
+                  <p class="text-sm leading-relaxed">{@pending_message}</p>
                 </div>
               </div>
 
               <!-- Streaming response -->
-              <div :if={@streaming} class="flex gap-3">
-                <div class="flex-shrink-0">
-                  <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <.icon name="hero-sparkles" class="h-5 w-5 text-indigo-600" />
-                  </div>
-                </div>
-                <div class="rounded-2xl px-4 py-3 max-w-sm bg-slate-100 text-slate-700">
-                  <p class="text-sm whitespace-pre-wrap">
-                    {@streaming_content}<span class="streaming-cursor">▌</span>
-                  </p>
+              <div :if={@streaming} class="space-y-2">
+                <div class="text-sm text-slate-700 leading-relaxed">
+                  {@streaming_content}<span class="streaming-cursor">▌</span>
                 </div>
               </div>
 
               <!-- Thinking indicator (non-streaming) -->
-              <div :if={@sending && !@streaming} class="flex gap-3">
-                <div class="flex-shrink-0">
-                  <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <.icon name="hero-arrow-path" class="h-5 w-5 text-indigo-600 animate-spin" />
-                  </div>
-                </div>
-                <div class="rounded-2xl px-4 py-3 bg-slate-100">
-                  <p class="text-sm text-slate-500">Thinking...</p>
-                </div>
+              <div :if={@sending && !@streaming} class="text-sm text-slate-500">
+                Thinking...
               </div>
             </div>
           <% else %>
@@ -313,8 +281,20 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         </div>
 
         <!-- Input Area -->
-        <div class="border-t border-slate-200 p-4 bg-white flex-shrink-0">
+        <div class="p-4 bg-white flex-shrink-0">
           <div class="relative">
+            <!-- Searching indicator -->
+            <div
+              :if={@mention_query && @searching_contacts && length(@mention_search_results) == 0}
+              id="bubble-mention-loading"
+              class="absolute bottom-full left-0 mb-2 w-full bg-white rounded-xl shadow-lg border border-slate-200 py-4 z-10"
+            >
+              <div class="flex items-center justify-center gap-2 text-slate-500 text-sm">
+                <.icon name="hero-arrow-path" class="h-4 w-4 animate-spin" />
+                <span>Searching contacts...</span>
+              </div>
+            </div>
+
             <!-- Mention autocomplete dropdown -->
             <div
               :if={@mention_query && length(@mention_search_results) > 0}
@@ -322,97 +302,84 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               class="absolute bottom-full left-0 mb-2 w-full bg-white rounded-xl shadow-lg border border-slate-200 max-h-48 overflow-y-auto z-10"
             >
               <%= for {contact, idx} <- Enum.with_index(@mention_search_results) do %>
-                <button
-                  type="button"
+                <div
                   data-mention-item
                   data-contact={contact_json(contact)}
-                  phx-click="select_mention"
-                  phx-value-contact={contact_json(contact)}
                   class={[
-                    "w-full px-4 py-3 text-left flex items-center gap-3 transition-colors",
-                    idx == 0 && "bg-indigo-50",
+                    "w-full px-4 py-2.5 text-left flex items-center gap-2.5 transition-colors cursor-pointer",
+                    idx == 0 && "bg-slate-50",
                     idx != 0 && "hover:bg-slate-50"
                   ]}
                 >
-                  <div class="mention-chip-avatar contact">
-                    {get_initials(contact)}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-slate-900 truncate">
-                      {contact.display_name || contact[:display_name]}
+                  <!-- Avatar with provider badge -->
+                  <div class="relative flex-shrink-0">
+                    <div class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-medium">
+                      {get_initials(contact)}
                     </div>
-                    <div class="text-xs text-slate-500 flex items-center gap-1 truncate">
-                      <span class={[
-                        "inline-block w-2 h-2 rounded-full",
-                        get_crm_provider(contact) == "hubspot" && "bg-orange-500",
-                        get_crm_provider(contact) == "salesforce" && "bg-blue-500"
-                      ]}></span>
-                      <span>{contact.email || contact[:email]}</span>
+                    <!-- Provider badge -->
+                    <div class={[
+                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-white",
+                      get_crm_provider(contact) == "hubspot" && "bg-orange-500",
+                      get_crm_provider(contact) == "salesforce" && "bg-blue-500"
+                    ]}>
+                      {provider_letter(get_crm_provider(contact))}
                     </div>
                   </div>
-                </button>
-              <% end %>
-            </div>
-
-            <!-- Mention chips display -->
-            <div :if={length(@mention_chips) > 0} class="flex flex-wrap gap-2 mb-3">
-              <%= for {chip, idx} <- Enum.with_index(@mention_chips) do %>
-                <span class={["mention-chip", chip.type]}>
-                  <span class="mention-chip-icon">{chip_icon(chip.type)}</span>
-                  <span class="mention-chip-name">{chip.display_name}</span>
-                  <button
-                    type="button"
-                    phx-click="remove_chip"
-                    phx-value-index={idx}
-                    class="mention-chip-remove"
-                  >
-                    <.icon name="hero-x-mark" class="h-3 w-3" />
-                  </button>
-                </span>
+                  <span class="text-sm text-slate-700 truncate">
+                    {contact.display_name || contact[:display_name]}
+                  </span>
+                </div>
               <% end %>
             </div>
 
             <!-- Input container -->
-            <div class="relative rounded-2xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-              <!-- Top toolbar -->
+            <div class="relative rounded-2xl border border-slate-200 bg-white focus-within:border-slate-300 transition-all">
+              <!-- Top toolbar with Add context -->
               <div class="px-4 pt-3">
                 <button
                   type="button"
                   phx-click="add_context"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 rounded-full transition-colors"
                   title="Add context by mentioning a contact"
                 >
-                  <.icon name="hero-at-symbol" class="h-4 w-4" />
+                  <span class="text-slate-400">@</span>
                   <span>Add context</span>
                 </button>
               </div>
 
-              <textarea
+              <!-- Contenteditable input with inline mentions -->
+              <div
                 id="bubble-chat-input"
-                name="message"
-                rows="3"
-                placeholder="Ask anything about your meetings..."
-                phx-keyup="input_change"
+                contenteditable={if @sending, do: "false", else: "true"}
                 phx-hook="BubbleChatInput"
                 phx-update="ignore"
-                disabled={@sending}
-                class="w-full resize-none border-0 px-4 py-3 text-sm focus:outline-none focus:ring-0 disabled:bg-slate-50 disabled:text-slate-500 placeholder:text-slate-400"
-              >{@input_value}</textarea>
+                data-placeholder="Ask anything about your meetings"
+                data-mentions={Jason.encode!(@mention_chips)}
+                class={[
+                  "chat-input-editable w-full min-h-[3rem] max-h-32 overflow-y-auto px-4 py-2 text-sm focus:outline-none",
+                  @sending && "bg-slate-50 text-slate-500 pointer-events-none"
+                ]}
+              ></div>
 
               <!-- Bottom toolbar -->
               <div class="flex items-center justify-between px-4 pb-3">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-slate-500">Sources</span>
+                  <span class="text-xs text-slate-400">Sources</span>
                   <%= if @hubspot_credential || @salesforce_credential do %>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-0.5">
                       <%= if @hubspot_credential do %>
-                        <div class="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center" title="HubSpot">
-                          <span class="text-white text-[10px] font-bold">H</span>
+                        <div class="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center" title="Meetings">
+                          <.icon name="hero-microphone" class="h-2.5 w-2.5 text-white" />
+                        </div>
+                      <% end %>
+                      <%= if @hubspot_credential do %>
+                        <div class="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center" title="HubSpot">
+                          <span class="text-white text-[8px] font-bold">H</span>
                         </div>
                       <% end %>
                       <%= if @salesforce_credential do %>
-                        <div class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center" title="Salesforce">
-                          <span class="text-white text-[10px] font-bold">S</span>
+                        <div class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center" title="Salesforce">
+                          <span class="text-white text-[8px] font-bold">S</span>
                         </div>
                       <% end %>
                     </div>
@@ -421,21 +388,18 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <% end %>
                 </div>
 
-                <div class="flex items-center gap-3">
-                  <span class="text-xs text-slate-400">⇧↵ to send</span>
-                  <button
-                    type="button"
-                    phx-click="send_message"
-                    disabled={@sending || String.trim(@input_value) == ""}
-                    class={[
-                      "p-2 rounded-xl transition-all",
-                      String.trim(@input_value) != "" && !@sending && "bg-indigo-600 text-white hover:bg-indigo-700",
-                      (String.trim(@input_value) == "" || @sending) && "bg-slate-200 text-slate-400 cursor-not-allowed"
-                    ]}
-                  >
-                    <.icon name="hero-arrow-up" class="h-5 w-5" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  phx-click="send_message"
+                  disabled={@sending}
+                  class={[
+                    "p-2 rounded-full transition-all",
+                    !@sending && "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    @sending && "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  ]}
+                >
+                  <.icon name="hero-arrow-up" class="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -483,6 +447,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         input_value: "",
         mentions: [],
         mention_chips: [],
+        pending_chips: [],
         active_tab: :chat
       )
       |> push_event("focus_bubble_input", %{})
@@ -528,46 +493,31 @@ defmodule SocialScribeWeb.ChatBubbleLive do
   end
 
   @impl true
-  def handle_event("select_mention", %{"contact" => contact_json}, socket) do
-    contact = Jason.decode!(contact_json)
-
-    # Create a mention chip
-    chip = %{
-      type: :contact,
-      id: contact["id"],
-      display_name: contact["display_name"],
-      crm_provider: contact["crm_provider"],
-      email: contact["email"]
-    }
-
-    mention = %{
-      contact_id: contact["id"],
-      contact_name: contact["display_name"],
-      crm_provider: contact["crm_provider"]
-    }
-
-    # Remove the @query from input
-    new_value =
-      if socket.assigns.mention_query do
-        String.replace(
-          socket.assigns.input_value,
-          ~r/@#{Regex.escape(socket.assigns.mention_query)}$/,
-          ""
-        )
-      else
-        socket.assigns.input_value
+  def handle_event("select_mention", params, socket) do
+    # JS inserts the pill directly, we just need to close dropdown and track mentions
+    # Mentions come from JS as JSON string
+    mentions =
+      case params["mentions"] do
+        nil -> socket.assigns.mentions
+        json ->
+          case Jason.decode(json) do
+            {:ok, list} -> Enum.map(list, fn m -> %{
+              contact_id: m["contact_id"],
+              contact_name: m["contact_name"],
+              crm_provider: m["crm_provider"]
+            } end)
+            _ -> socket.assigns.mentions
+          end
       end
 
     {:noreply,
      socket
      |> assign(
-       input_value: new_value,
-       mentions: socket.assigns.mentions ++ [mention],
-       mention_chips: socket.assigns.mention_chips ++ [chip],
+       mentions: mentions,
        mention_query: nil,
-       mention_search_results: []
-     )
-     |> push_event("update_bubble_input", %{value: new_value})}
+       mention_search_results: [],
+       searching_contacts: false
+     )}
   end
 
   @impl true
@@ -582,20 +532,51 @@ defmodule SocialScribeWeb.ChatBubbleLive do
 
   @impl true
   def handle_event("close_mention_dropdown", _params, socket) do
-    {:noreply, assign(socket, mention_query: nil, mention_search_results: [])}
+    {:noreply, assign(socket, mention_query: nil, mention_search_results: [], searching_contacts: false)}
   end
 
   @impl true
-  def handle_event("send_message", _params, socket) do
-    content = socket.assigns.input_value
-    mentions = socket.assigns.mentions
-    chips = socket.assigns.mention_chips
+  def handle_event("mention_inserted", params, socket) do
+    # JS has inserted a mention pill, update our mentions list
+    mentions =
+      case params["mentions"] do
+        nil -> socket.assigns.mentions
+        json ->
+          case Jason.decode(json) do
+            {:ok, list} -> Enum.map(list, fn m -> %{
+              contact_id: m["contact_id"],
+              contact_name: m["contact_name"],
+              crm_provider: m["crm_provider"]
+            } end)
+            _ -> socket.assigns.mentions
+          end
+      end
 
-    # Build the full message content with chip references
-    full_content = build_content_with_chips(content, chips)
+    {:noreply, assign(socket, mentions: mentions)}
+  end
+
+  @impl true
+  def handle_event("send_message", params, socket) do
+    # Content and mentions come from JS hook (contenteditable)
+    content = params["content"] || socket.assigns.input_value
+    mentions_json = params["mentions"]
+
+    mentions =
+      if mentions_json do
+        case Jason.decode(mentions_json) do
+          {:ok, list} -> Enum.map(list, fn m -> %{
+            contact_id: m["contact_id"],
+            contact_name: m["contact_name"],
+            crm_provider: m["crm_provider"]
+          } end)
+          _ -> socket.assigns.mentions
+        end
+      else
+        socket.assigns.mentions
+      end
 
     cond do
-      String.trim(full_content) == "" && Enum.empty?(chips) ->
+      String.trim(content) == "" && Enum.empty?(mentions) ->
         {:noreply, socket}
 
       is_nil(socket.assigns.current_thread) ->
@@ -608,12 +589,13 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 sending: true,
                 input_value: "",
                 mentions: [],
+                pending_chips: [],
                 mention_chips: [],
-                pending_message: full_content
+                pending_message: content
               )
               |> push_event("update_bubble_input", %{value: ""})
 
-            send(self(), {:process_message, thread.id, full_content, mentions})
+            send(self(), {:process_message, thread.id, content, mentions})
             {:noreply, socket}
 
           {:error, _} ->
@@ -627,12 +609,13 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             sending: true,
             input_value: "",
             mentions: [],
+            pending_chips: [],
             mention_chips: [],
-            pending_message: full_content
+            pending_message: content
           )
           |> push_event("update_bubble_input", %{value: ""})
 
-        send(self(), {:process_message, socket.assigns.current_thread.id, full_content, mentions})
+        send(self(), {:process_message, socket.assigns.current_thread.id, content, mentions})
         {:noreply, socket}
     end
   end
@@ -716,6 +699,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
            streaming: false,
            streaming_content: "",
            pending_message: nil,
+           pending_chips: [],
            salesforce_reauth_required: socket.assigns.salesforce_reauth_required
          )}
 
@@ -727,6 +711,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
            streaming: false,
            streaming_content: "",
            pending_message: nil,
+           pending_chips: [],
            salesforce_reauth_required: true
          )
          |> put_flash(:error, "Reconnect Salesforce to keep CRM context in chat.")}
@@ -737,7 +722,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         {:noreply,
          socket
          |> put_flash(:error, "Failed to process message. Please try again.")
-         |> assign(sending: false, streaming: false, streaming_content: "", pending_message: nil)}
+         |> assign(sending: false, streaming: false, streaming_content: "", pending_message: nil, pending_chips: [])}
     end
   end
 
@@ -754,6 +739,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     {:noreply,
      assign(socket,
        mention_search_results: results,
+       searching_contacts: false,
        salesforce_reauth_required: salesforce_reauth_required
      )}
   end
@@ -770,10 +756,10 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     case detect_mention_query(value) do
       {:mention, query} when byte_size(query) >= 2 ->
         send(self(), {:search_contacts, query})
-        assign(socket, mention_query: query)
+        assign(socket, mention_query: query, searching_contacts: true)
 
       _ ->
-        assign(socket, mention_query: nil, mention_search_results: [])
+        assign(socket, mention_query: nil, mention_search_results: [], searching_contacts: false)
     end
   end
 
@@ -781,20 +767,6 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     case Regex.run(~r/@(\w+)$/, value) do
       [_, query] -> {:mention, query}
       _ -> :none
-    end
-  end
-
-  defp build_content_with_chips(content, chips) do
-    chip_text =
-      chips
-      |> Enum.map(fn chip -> "@#{chip.display_name}" end)
-      |> Enum.join(" ")
-
-    case {String.trim(content), chip_text} do
-      {"", ""} -> ""
-      {"", chips} -> chips
-      {text, ""} -> text
-      {text, chips} -> "#{chips} #{text}"
     end
   end
 
@@ -819,28 +791,81 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     contact.crm_provider || contact[:crm_provider]
   end
 
-  defp chip_icon(:contact), do: "👤"
-  defp chip_icon(:meeting), do: "📅"
-  defp chip_icon(:deal), do: "💼"
-  defp chip_icon(_), do: "📎"
+  defp provider_letter("hubspot"), do: "H"
+  defp provider_letter("salesforce"), do: "S"
+  defp provider_letter(_), do: ""
 
-  defp render_content_with_chips(content, _mentions) do
-    content
+  # Render message content with inline mentions (avatar + name)
+  defp render_content_with_inline_mentions(content, mentions) when is_list(mentions) and length(mentions) > 0 do
+    # Build a map of mention names to their data
+    mention_map =
+      mentions
+      |> Enum.map(fn m -> {m.contact_name, m} end)
+      |> Map.new()
+
+    # Find all @Name patterns and replace with inline avatar + name
+    Regex.replace(~r/@([A-Z][a-z]+ [A-Z][a-z]+|[A-Z][a-z]+)/, content, fn _, name ->
+      case Map.get(mention_map, name) do
+        nil -> "@#{name}"
+        mention ->
+          initials = get_mention_initials(mention.contact_name)
+          provider = mention.crm_provider || ""
+          provider_class = if provider == "hubspot", do: "bg-orange-500", else: "bg-blue-500"
+          provider_l = provider_letter(provider)
+
+          """
+          <span class="inline-mention">
+            <span class="inline-mention-avatar">
+              #{initials}
+              <span class="inline-mention-badge #{provider_class}">#{provider_l}</span>
+            </span>
+            <span class="inline-mention-name">#{name}</span>
+          </span>
+          """
+      end
+    end)
+    |> Phoenix.HTML.raw()
   end
+  defp render_content_with_inline_mentions(content, _), do: content
 
-  defp format_date(date_string) do
-    case Date.from_iso8601(date_string) do
-      {:ok, date} ->
-        today = Date.utc_today()
+  defp get_mention_initials(name) when is_binary(name) do
+    parts = String.split(name, " ", trim: true)
+    case parts do
+      [first | [last | _]] -> "#{String.first(first) || ""}#{String.first(last) || ""}"
+      [first | _] -> String.first(first) || ""
+      _ -> ""
+    end
+  end
+  defp get_mention_initials(_), do: ""
 
-        cond do
-          date == today -> "Today"
-          date == Date.add(today, -1) -> "Yesterday"
-          true -> Calendar.strftime(date, "%b %d")
-        end
+  defp format_date_with_time(date_string, first_msg) do
+    time_str =
+      case first_msg do
+        %{inserted_at: %NaiveDateTime{} = dt} ->
+          hour = dt.hour
+          minute = dt.minute
+          am_pm = if hour >= 12, do: "pm", else: "am"
+          display_hour = cond do
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            true -> hour
+          end
+          "#{display_hour}:#{String.pad_leading(Integer.to_string(minute), 2, "0")}#{am_pm}"
+        _ -> ""
+      end
 
-      _ ->
-        date_string
+    date_str =
+      case Date.from_iso8601(date_string) do
+        {:ok, date} ->
+          Calendar.strftime(date, "%B %d, %Y")
+        _ ->
+          date_string
+      end
+
+    if time_str != "" do
+      "#{time_str} – #{date_str}"
+    else
+      date_str
     end
   end
 
