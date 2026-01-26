@@ -257,6 +257,10 @@
   margin: 0 0.125rem;
 }
 
+.inline-mention-pill--message {
+  background-color: #ffffff;
+}
+
 .inline-mention-pill-avatar {
   position: relative;
   display: inline-flex;

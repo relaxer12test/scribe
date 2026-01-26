@@ -1040,7 +1040,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         "inline-mention-pill-badge #{badge_class}"
       end
 
-    "<span class=\"inline-mention-pill\"><span class=\"inline-mention-pill-avatar\">#{safe_initials}<span class=\"#{badge_classes}\">#{safe_provider}</span></span><span class=\"inline-mention-pill-name\">#{safe_name}</span></span>"
+    "<span class=\"inline-mention-pill inline-mention-pill--message\"><span class=\"inline-mention-pill-avatar\">#{safe_initials}<span class=\"#{badge_classes}\">#{safe_provider}</span></span><span class=\"inline-mention-pill-name\">#{safe_name}</span></span>"
   end
 
   defp get_mention_initials(name) when is_binary(name) do
