@@ -98,7 +98,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       <div
         :if={@bubble_open}
         id="chat-panel"
-        class="fixed top-0 right-0 h-full w-full sm:w-[24rem] bg-white border-t border-slate-200 shadow-[0_0_0_1px_rgba(226,232,240,0.9),0_18px_40px_rgba(15,23,42,0.08)] z-50 flex flex-col chat-sidebar-enter"
+        class="fixed top-0 right-0 h-full w-full sm:w-[24rem] bg-white shadow-[0_0_0_1px_rgba(226,232,240,0.8),0_18px_40px_rgba(15,23,42,0.08)] z-50 flex flex-col chat-sidebar-enter"
       >
         <!-- Header -->
         <div class="px-4 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
@@ -357,7 +357,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             </div>
 
             <!-- Input container -->
-            <div class="relative rounded-2xl border border-slate-300 bg-white focus-within:border-blue-500 transition-colors">
+            <div class="relative rounded-2xl border border-slate-200 bg-white focus-within:border-slate-300 transition-colors">
               <!-- Top toolbar with Add context -->
               <div class="px-3 pt-3">
                 <button
