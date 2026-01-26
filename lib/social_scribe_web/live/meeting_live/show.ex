@@ -87,14 +87,14 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def handle_info({:hubspot_search, query, credential}, socket) do
     case HubspotApi.search_contacts(credential, query) do
       {:ok, contacts} ->
-        send_update(SocialScribeWeb.MeetingLive.HubspotModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "hubspot-modal",
           contacts: contacts,
           searching: false
         )
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.HubspotModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "hubspot-modal",
           error: "Failed to search contacts: #{inspect(reason)}",
           searching: false
@@ -110,7 +110,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
       {:ok, suggestions} ->
         merged = HubspotSuggestions.merge_with_contact(suggestions, normalize_contact(contact))
 
-        send_update(SocialScribeWeb.MeetingLive.HubspotModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "hubspot-modal",
           step: :suggestions,
           suggestions: merged,
@@ -118,7 +118,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         )
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.HubspotModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "hubspot-modal",
           error: "Failed to generate suggestions: #{inspect(reason)}",
           loading: false
@@ -142,7 +142,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         {:noreply, socket}
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.HubspotModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "hubspot-modal",
           error: "Failed to update contact: #{inspect(reason)}",
           loading: false
@@ -155,7 +155,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def handle_info({:salesforce_search, query, credential}, socket) do
     case SalesforceApi.search_contacts(credential, query) do
       {:ok, contacts} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           contacts: contacts,
           searching: false,
@@ -163,7 +163,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         )
 
       {:error, {:reauth_required, _info}} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           contacts: [],
           searching: false,
@@ -172,7 +172,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         )
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           error: "Failed to search contacts: #{inspect(reason)}",
           searching: false,
@@ -187,7 +187,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def handle_info({:generate_salesforce_suggestions, contact, meeting, credential}, socket) do
     case SalesforceSuggestions.generate_suggestions(credential, contact.id, meeting) do
       {:ok, %{contact: updated_contact, suggestions: suggestions}} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           step: :suggestions,
           selected_contact: updated_contact,
@@ -197,7 +197,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         )
 
       {:error, {:reauth_required, _info}} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           error: "Reconnect Salesforce to generate suggestions.",
           loading: false,
@@ -205,7 +205,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         )
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           error: "Failed to generate suggestions: #{inspect(reason)}",
           loading: false,
@@ -230,7 +230,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         {:noreply, socket}
 
       {:error, {:reauth_required, _info}} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           error: "Reconnect Salesforce to apply updates.",
           loading: false,
@@ -240,7 +240,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         {:noreply, socket}
 
       {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.SalesforceModalComponent,
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
           id: "salesforce-modal",
           error: "Failed to update contact: #{inspect(reason)}",
           loading: false,

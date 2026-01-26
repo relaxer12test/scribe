@@ -341,13 +341,30 @@ defmodule SocialScribeWeb.ModalComponents do
         <div class="flex items-start gap-3">
           <div class="flex items-center h-5 pt-0.5">
             <input
+              id={"suggestion-apply-#{@suggestion.field}"}
               type="checkbox"
+              name={"apply[#{@suggestion.field}]"}
+              value="1"
               checked={@suggestion.apply}
-              phx-click={JS.dispatch("click", to: "#suggestion-apply-#{@suggestion.field}")}
               class="h-4 w-4 rounded-[3px] border-slate-300 text-hubspot-checkbox accent-hubspot-checkbox focus:ring-0 focus:ring-offset-0 cursor-pointer"
             />
           </div>
-          <div class="text-sm font-semibold text-slate-900 leading-5">{@suggestion.label}</div>
+          <div class="text-sm font-semibold text-slate-900 leading-5">
+            <%= if @suggestion[:mapping_open] && @field_options != [] do %>
+              <select
+                id={"suggestion-mapping-#{@suggestion.field}"}
+                name={"mapping[#{@suggestion.field}]"}
+                class="text-sm font-semibold bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-900"
+                aria-label="Select field to update"
+              >
+                <option :for={{label, value} <- @field_options} value={value} selected={value == @suggestion.field}>
+                  {label}
+                </option>
+              </select>
+            <% else %>
+              {@suggestion.label}
+            <% end %>
+          </div>
         </div>
 
         <div class="flex items-center gap-3 pt-0.5">
@@ -367,7 +384,6 @@ defmodule SocialScribeWeb.ModalComponents do
       </div>
 
       <div class="mt-2 pl-8">
-        <div class="text-sm font-medium text-slate-700 leading-5 ml-1">{@suggestion.label}</div>
         <div
           :if={@suggestion[:person] && @suggestion[:person] != ""}
           class="mt-1 text-xs text-slate-500 ml-1"
@@ -376,16 +392,7 @@ defmodule SocialScribeWeb.ModalComponents do
           <span class="font-medium text-slate-700">{@suggestion[:person]}</span>
         </div>
 
-        <div class="relative mt-2">
-          <input
-            id={"suggestion-apply-#{@suggestion.field}"}
-            type="checkbox"
-            name={"apply[#{@suggestion.field}]"}
-            value="1"
-            checked={@suggestion.apply}
-            class="absolute -left-8 top-1/2 -translate-y-1/2 h-4 w-4 rounded-[3px] border-slate-300 text-hubspot-checkbox accent-hubspot-checkbox focus:ring-0 focus:ring-offset-0 cursor-pointer"
-          />
-
+        <div class="mt-2">
           <div class="grid grid-cols-[1fr_32px_1fr] items-center gap-6">
             <input
               type="text"
@@ -413,32 +420,17 @@ defmodule SocialScribeWeb.ModalComponents do
         </div>
 
         <div class="mt-3 grid grid-cols-[1fr_32px_1fr] items-start gap-6">
-          <div class="space-y-2">
-            <button
-              type="button"
-              phx-click={JS.push("toggle_mapping", value: %{field: @suggestion.field}, target: @myself)}
-              class="text-xs text-hubspot-link hover:text-hubspot-link-hover font-medium"
-            >
-              <%= if @suggestion[:mapping_open] do %>
-                Close mapping
-              <% else %>
-                Update mapping
-              <% end %>
-            </button>
-            <div :if={@suggestion[:mapping_open] && @field_options != []} class="flex items-center gap-2">
-              <span class="text-xs text-slate-500">Map to</span>
-              <select
-                id={"suggestion-mapping-#{@suggestion.field}"}
-                name={"mapping[#{@suggestion.field}]"}
-                class="text-xs bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-700"
-                aria-label="Select field to update"
-              >
-                <option :for={{label, value} <- @field_options} value={value} selected={value == @suggestion.field}>
-                  {label}
-                </option>
-              </select>
-            </div>
-          </div>
+          <button
+            type="button"
+            phx-click={JS.push("toggle_mapping", value: %{field: @suggestion.field}, target: @myself)}
+            class="text-xs text-hubspot-link hover:text-hubspot-link-hover font-medium justify-self-start"
+          >
+            <%= if @suggestion[:mapping_open] do %>
+              Close mapping
+            <% else %>
+              Update mapping
+            <% end %>
+          </button>
           <span></span>
           <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">Found in transcript<span
               class="text-hubspot-link hover:underline cursor-help"

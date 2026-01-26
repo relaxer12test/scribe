@@ -1,38 +1,44 @@
-defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
+defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   use SocialScribeWeb, :live_component
 
   import SocialScribeWeb.ModalComponents
+  alias SocialScribe.HubspotSuggestions
   alias SocialScribe.SalesforceSuggestions
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :patch, ~p"/dashboard/meetings/#{assigns.meeting}")
-    assigns = assign_new(assigns, :modal_id, fn -> "salesforce-modal-wrapper" end)
+    assigns =
+      assigns
+      |> assign_new(:provider, fn -> "hubspot" end)
+      |> assign(:provider, normalize_provider(assigns.provider))
+      |> assign_new(:provider_config, fn -> provider_config(assigns.provider) end)
+      |> assign(:patch, ~p"/dashboard/meetings/#{assigns.meeting}")
+      |> assign_new(:modal_id, fn -> default_modal_id(assigns.provider) end)
 
     ~H"""
     <div class="space-y-6">
-      <%= if @reauth_required do %>
+      <%= if @provider_config.reauth && @reauth_required do %>
         <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p class="font-semibold">Reconnect Salesforce to continue</p>
+              <p class="font-semibold">Reconnect {@provider_config.name} to continue</p>
               <p class="text-sm text-amber-800">
-                We couldn't refresh your Salesforce connection. Reconnect to keep updates working.
+                We couldn't refresh your {@provider_config.name} connection. Reconnect to keep updates working.
               </p>
             </div>
             <.link
-              href={~p"/auth/salesforce?prompt=consent"}
+              href={@provider_config.reauth_path}
               method="get"
               class="inline-flex items-center justify-center rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-amber-700"
             >
-              Reconnect Salesforce
+              Reconnect {@provider_config.name}
             </.link>
           </div>
         </div>
       <% end %>
       <div>
         <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
-          Update in Salesforce
+          Update in {@provider_config.name}
         </h2>
         <p id={"#{@modal_id}-description"} class="mt-2 text-base font-light leading-7 text-slate-500">
           Here are suggested updates to sync with your integrations based on this
@@ -56,6 +62,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
           loading={@loading}
           myself={@myself}
           patch={@patch}
+          provider_config={@provider_config}
         />
       <% end %>
     </div>
@@ -66,12 +73,13 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   attr :loading, :boolean, required: true
   attr :myself, :any, required: true
   attr :patch, :string, required: true
+  attr :provider_config, :map, required: true
 
   defp suggestions_section(assigns) do
     assigns =
       assigns
       |> assign(:selected_count, Enum.count(assigns.suggestions, & &1.apply))
-      |> assign(:field_options, SalesforceSuggestions.field_options())
+      |> assign(:field_options, assigns.provider_config.suggestions_module.field_options())
 
     ~H"""
     <div class="space-y-4">
@@ -99,8 +107,8 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
             <.modal_footer
               cancel_patch={@patch}
-              submit_text="Update Salesforce"
-              submit_class="bg-sky-600 hover:bg-sky-700"
+              submit_text={@provider_config.submit_text}
+              submit_class={@provider_config.submit_class}
               disabled={@selected_count == 0}
               loading={@loading}
               loading_text="Updating..."
@@ -115,21 +123,19 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def update(assigns, socket) do
-    reauth_required =
-      case Map.fetch(assigns, :reauth_required) do
-        {:ok, value} ->
-          value
+    provider =
+      assigns
+      |> Map.get(:provider, socket.assigns[:provider] || "hubspot")
+      |> normalize_provider()
 
-        :error ->
-          case assigns[:credential] do
-            %{reauth_required_at: %DateTime{}} -> true
-            _ -> false
-          end
-      end
+    provider_config = provider_config(provider)
+    reauth_required = reauth_required_for(provider, assigns, socket)
 
     socket =
       socket
       |> assign(assigns)
+      |> assign(:provider, provider)
+      |> assign(:provider_config, provider_config)
       |> assign(:reauth_required, reauth_required)
       |> maybe_select_all_suggestions(assigns)
       |> assign_new(:step, fn -> :search end)
@@ -154,20 +160,21 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
   @impl true
   def handle_event("contact_search", %{"value" => query}, socket) do
     query = String.trim(query)
+    provider_config = socket.assigns.provider_config
 
     cond do
-      socket.assigns.reauth_required ->
+      provider_config.reauth && socket.assigns.reauth_required ->
         {:noreply,
          assign(socket,
            searching: false,
            dropdown_open: false,
-           error: "Reconnect Salesforce to search contacts.",
+           error: "Reconnect #{provider_config.name} to search contacts.",
            query: query
          )}
 
       String.length(query) >= 2 ->
         socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
-        send(self(), {:salesforce_search, query, socket.assigns.credential})
+        send(self(), {provider_config.search_event, query, socket.assigns.credential})
         {:noreply, socket}
 
       true ->
@@ -187,9 +194,11 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def handle_event("toggle_contact_dropdown", _params, socket) do
+    provider_config = socket.assigns.provider_config
+
     cond do
-      socket.assigns.reauth_required ->
-        {:noreply, assign(socket, error: "Reconnect Salesforce to search contacts.")}
+      provider_config.reauth && socket.assigns.reauth_required ->
+        {:noreply, assign(socket, error: "Reconnect #{provider_config.name} to search contacts.")}
 
       socket.assigns.dropdown_open ->
         {:noreply, assign(socket, dropdown_open: false)}
@@ -197,29 +206,32 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
       true ->
         socket = assign(socket, dropdown_open: true, searching: true)
         query = "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
-        send(self(), {:salesforce_search, query, socket.assigns.credential})
+        send(self(), {provider_config.search_event, query, socket.assigns.credential})
         {:noreply, socket}
     end
   end
 
   @impl true
   def handle_event("select_contact", %{"id" => contact_id}, socket) do
-    if socket.assigns.reauth_required do
-      {:noreply, assign(socket, error: "Reconnect Salesforce to load contacts.")}
+    provider_config = socket.assigns.provider_config
+
+    if provider_config.reauth && socket.assigns.reauth_required do
+      {:noreply, assign(socket, error: "Reconnect #{provider_config.name} to load contacts.")}
     else
       contact = Enum.find(socket.assigns.contacts, &(&1.id == contact_id))
 
       if contact do
-        socket = assign(socket,
-          loading: true,
-          selected_contact: contact,
-          error: nil,
-          dropdown_open: false,
-          query: "",
-          suggestions: []
-        )
+        socket =
+          assign(socket,
+            loading: true,
+            selected_contact: contact,
+            error: nil,
+            dropdown_open: false,
+            query: "",
+            suggestions: []
+          )
 
-        send(self(), {:generate_salesforce_suggestions, contact, socket.assigns.meeting, socket.assigns.credential})
+        send(self(), {provider_config.generate_event, contact, socket.assigns.meeting, socket.assigns.credential})
         {:noreply, socket}
       else
         {:noreply, assign(socket, error: "Contact not found")}
@@ -250,6 +262,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
     mapping = Map.get(params, "mapping", %{})
     checked_fields = remap_apply_fields(applied_fields, mapping)
     mapped_values = remap_values(values, mapping)
+    provider_config = socket.assigns.provider_config
 
     updated_suggestions =
       Enum.map(socket.assigns.suggestions, fn suggestion ->
@@ -264,8 +277,8 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
             %{
               suggestion
               | field: new_field,
-                label: SalesforceSuggestions.field_label(new_field),
-                current_value: contact_field_value(socket.assigns.selected_contact, new_field),
+                label: provider_config.suggestions_module.field_label(new_field),
+                current_value: contact_field_value(socket.assigns.provider, socket.assigns.selected_contact, new_field),
                 mapping_open: false
             }
           else
@@ -295,8 +308,10 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   @impl true
   def handle_event("apply_updates", %{"apply" => selected, "values" => values}, socket) do
-    if socket.assigns.reauth_required do
-      {:noreply, assign(socket, error: "Reconnect Salesforce to apply updates.")}
+    provider_config = socket.assigns.provider_config
+
+    if provider_config.reauth && socket.assigns.reauth_required do
+      {:noreply, assign(socket, error: "Reconnect #{provider_config.name} to apply updates.")}
     else
       socket = assign(socket, loading: true, error: nil)
 
@@ -307,7 +322,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
           Map.put(acc, field, Map.get(values, field, ""))
         end)
 
-      send(self(), {:apply_salesforce_updates, updates, socket.assigns.selected_contact, socket.assigns.credential})
+      send(self(), {provider_config.apply_event, updates, socket.assigns.selected_contact, socket.assigns.credential})
       {:noreply, socket}
     end
   end
@@ -329,9 +344,74 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
     end)
   end
 
-  defp contact_field_value(contact, field) when is_map(contact) and is_binary(field) do
+  defp contact_field_value("hubspot", contact, field) when is_map(contact) and is_binary(field) do
+    Map.get(contact, field) ||
+      (try do
+         Map.get(contact, String.to_existing_atom(field))
+       rescue
+         ArgumentError -> nil
+       end)
+  end
+
+  defp contact_field_value(_, contact, field) when is_map(contact) and is_binary(field) do
     Map.get(contact, field)
   end
 
-  defp contact_field_value(_, _), do: nil
+  defp contact_field_value(_, _, _), do: nil
+
+  defp provider_config("hubspot") do
+    %{
+      name: "HubSpot",
+      submit_text: "Update HubSpot",
+      submit_class: "bg-hubspot-button hover:bg-hubspot-button-hover",
+      suggestions_module: HubspotSuggestions,
+      search_event: :hubspot_search,
+      generate_event: :generate_suggestions,
+      apply_event: :apply_hubspot_updates,
+      reauth: false,
+      reauth_path: nil
+    }
+  end
+
+  defp provider_config("salesforce") do
+    %{
+      name: "Salesforce",
+      submit_text: "Update Salesforce",
+      submit_class: "bg-sky-600 hover:bg-sky-700",
+      suggestions_module: SalesforceSuggestions,
+      search_event: :salesforce_search,
+      generate_event: :generate_salesforce_suggestions,
+      apply_event: :apply_salesforce_updates,
+      reauth: true,
+      reauth_path: ~p"/auth/salesforce?prompt=consent"
+    }
+  end
+
+  defp provider_config(_), do: provider_config("hubspot")
+
+  defp default_modal_id("salesforce"), do: "salesforce-modal-wrapper"
+  defp default_modal_id(_), do: "hubspot-modal-wrapper"
+
+  defp normalize_provider(provider) when is_atom(provider),
+    do: provider |> Atom.to_string() |> normalize_provider()
+
+  defp normalize_provider(provider) when is_binary(provider), do: String.downcase(provider)
+  defp normalize_provider(_), do: "hubspot"
+
+  defp reauth_required_for("salesforce", assigns, socket) do
+    case Map.fetch(assigns, :reauth_required) do
+      {:ok, value} ->
+        value
+
+      :error ->
+        credential = Map.get(assigns, :credential, socket.assigns[:credential])
+
+        case credential do
+          %{reauth_required_at: %DateTime{}} -> true
+          _ -> false
+        end
+    end
+  end
+
+  defp reauth_required_for(_, _assigns, _socket), do: false
 end
