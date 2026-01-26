@@ -275,6 +275,25 @@ defmodule SocialScribe.MeetingsTest do
     end
   end
 
+  describe "human_participants/1" do
+    test "filters bot entries from participant lists" do
+      human_struct = %MeetingParticipant{name: "Pat Doe"}
+      human_map = %{name: "Jamie Smith", role: "participant"}
+      bot_flag_map = %{name: "Camera 1", is_bot: true}
+      bot_role_map = %{name: "Recorder", role: "bot"}
+      bot_name_struct = %MeetingParticipant{name: "Social Scribe Bot"}
+
+      participants = [bot_flag_map, human_struct, bot_role_map, human_map, bot_name_struct]
+
+      assert Meetings.human_participants(participants) == [human_struct, human_map]
+    end
+
+    test "returns empty list for non-list input" do
+      assert Meetings.human_participants(nil) == []
+      assert Meetings.human_participants("not-a-list") == []
+    end
+  end
+
   describe "create_meeting_from_recall_data/3" do
     import SocialScribe.MeetingInfoExample
     import SocialScribe.MeetingTranscriptExample

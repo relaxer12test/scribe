@@ -576,6 +576,31 @@ defmodule SocialScribeWeb.ModalComponents do
   end
 
   @doc """
+  Renders a CRM provider icon.
+
+  ## Examples
+
+      <.crm_provider_icon provider={%{icon: :hubspot}} />
+  """
+  attr :provider, :map, required: true
+  attr :class, :string, default: "w-5 h-5 mr-2"
+
+  def crm_provider_icon(assigns) do
+    ~H"""
+    <%= case @provider.icon do %>
+      <% :hubspot -> %>
+        <svg class={@class} fill="currentColor" viewBox="0 0 24 24">
+          <path d="M18.72 14.76c.35-.85.54-1.76.54-2.76 0-.72-.11-1.41-.3-2.05-.65.15-1.33.23-2.04.23A9.07 9.07 0 0112 9.9a8.963 8.963 0 01-4.92.28c-.2.64-.3 1.33-.3 2.05 0 1 .19 1.91.54 2.76 1.34-.5 2.75-.79 4.18-.79s2.84.29 4.22.79M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m0-14c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3" />
+        </svg>
+      <% :salesforce -> %>
+        <.icon name="hero-cloud" class={@class} />
+      <% _ -> %>
+        <.icon name="hero-cloud" class={@class} />
+    <% end %>
+    """
+  end
+
+  @doc """
   Renders a HubSpot-styled modal wrapper.
 
   This is a specialized modal with HubSpot-specific styling:

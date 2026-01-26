@@ -2,6 +2,7 @@ defmodule SocialScribe.CrmUpdates.CrmContactUpdate do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias SocialScribe.CrmProviders
   alias SocialScribe.Meetings.Meeting
 
   schema "crm_contact_updates" do
@@ -29,7 +30,7 @@ defmodule SocialScribe.CrmUpdates.CrmContactUpdate do
       :meeting_id
     ])
     |> validate_required([:crm_provider, :contact_id, :updates, :applied_at, :meeting_id])
-    |> validate_inclusion(:crm_provider, ["hubspot", "salesforce"])
+    |> validate_inclusion(:crm_provider, CrmProviders.provider_ids())
     |> validate_inclusion(:status, ["applied"])
   end
 end

@@ -48,7 +48,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:ok, mock_contacts}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")
@@ -68,7 +68,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:error, {:api_error, 500, %{"message" => "Internal server error"}}}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")
@@ -125,7 +125,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:ok, mock_suggestions}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")
@@ -158,7 +158,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:ok, [mock_contact]}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")
@@ -221,7 +221,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:ok, mock_suggestions}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")
@@ -291,7 +291,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
         {:ok, mock_suggestions}
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       view
       |> element("input[phx-keyup='contact_search']")

@@ -357,12 +357,27 @@ Hooks.BubbleChatInput = {
         })
 
         this.handleEvent("update_bubble_input", ({ value }) => {
-            if (value === "") {
-                this.el.textContent = ""
+            if (value !== "") {
+                return
             }
+            this.el.textContent = ""
             this.el.focus()
             moveCursorToEnd()
             cacheCaretOffset()
+        })
+
+        this.handleEvent("insert_bubble_text", ({ value }) => {
+            if (!value) return
+            const currentText = buildContentText()
+            let insertion = value
+            if (currentText.trim().length > 0 && !/\s$/.test(currentText)) {
+                insertion = ` ${value}`
+            }
+            this.el.appendChild(document.createTextNode(insertion))
+            this.el.focus()
+            moveCursorToEnd()
+            cacheCaretOffset()
+            this.pushEvent("input_change", { value: buildContentText() })
         })
 
         const getDropdown = () => document.getElementById("bubble-mention-dropdown")

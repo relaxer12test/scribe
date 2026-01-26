@@ -20,27 +20,27 @@ defmodule SocialScribeWeb.SalesforceModalTest do
     end
 
     test "renders modal when navigating to salesforce route", %{conn: conn, meeting: meeting} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       assert has_element?(view, "#salesforce-modal-wrapper")
       assert has_element?(view, "h2", "Update in Salesforce")
     end
 
     test "displays contact search input", %{conn: conn, meeting: meeting} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       assert has_element?(view, "input[placeholder*='Search']")
     end
 
     test "shows contact search initially without suggestions form", %{conn: conn, meeting: meeting} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       assert has_element?(view, "input[phx-keyup='contact_search']")
       refute has_element?(view, "form[phx-submit='apply_updates']")
     end
 
     test "modal can be closed by navigating back", %{conn: conn, meeting: meeting} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       assert has_element?(view, "#salesforce-modal-wrapper")
 
@@ -73,9 +73,10 @@ defmodule SocialScribeWeb.SalesforceModalTest do
       conn: conn,
       meeting: meeting
     } do
-      {:ok, _view, html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
-      refute html =~ "salesforce-modal-wrapper"
+      assert to == "/dashboard/meetings/#{meeting.id}"
     end
   end
 
@@ -94,7 +95,7 @@ defmodule SocialScribeWeb.SalesforceModalTest do
     end
 
     test "contact_search input is present and accepts input", %{conn: conn, meeting: meeting} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/salesforce")
+      {:ok, view, _html} = live(conn, ~p"/dashboard/meetings/#{meeting.id}/crm/salesforce")
 
       assert has_element?(view, "input[phx-keyup='contact_search']")
       assert has_element?(view, "input[placeholder*='Search']")

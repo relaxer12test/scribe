@@ -356,6 +356,15 @@ defmodule SocialScribe.Meetings do
   end
 
   @doc """
+  Returns meeting participants excluding bot entries.
+  """
+  def human_participants(participants) when is_list(participants) do
+    Enum.reject(participants, &bot_participant?/1)
+  end
+
+  def human_participants(_), do: []
+
+  @doc """
   Creates a complete meeting record from Recall.ai bot info, transcript data, and participants.
   This should be called when a bot's status is "done".
   """
@@ -456,6 +465,35 @@ defmodule SocialScribe.Meetings do
         []
     end
   end
+
+  defp bot_participant?(participant) when is_map(participant) do
+    bot_flag =
+      Map.get(participant, :is_bot) ||
+        Map.get(participant, "is_bot") ||
+        Map.get(participant, :bot) ||
+        Map.get(participant, "bot")
+
+    role = Map.get(participant, :role) || Map.get(participant, "role")
+    type = Map.get(participant, :type) || Map.get(participant, "type")
+    name = Map.get(participant, :name) || Map.get(participant, "name")
+
+    bot_flag? = bot_flag == true || bot_flag == "true" || bot_marker?(bot_flag)
+
+    bot_flag? || bot_marker?(role) || bot_marker?(type) || bot_name?(name)
+  end
+
+  defp bot_participant?(_), do: true
+
+  defp bot_marker?(value) when is_binary(value), do: String.downcase(value) == "bot"
+  defp bot_marker?(value) when is_atom(value), do: value == :bot
+  defp bot_marker?(_), do: false
+
+  defp bot_name?(name) when is_binary(name) do
+    normalized = name |> String.downcase() |> String.trim()
+    Regex.match?(~r/\b(bot|note[\s-]?taker)\b/, normalized)
+  end
+
+  defp bot_name?(_), do: false
 
 
   @doc """

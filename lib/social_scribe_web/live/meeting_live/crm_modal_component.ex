@@ -2,18 +2,23 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   use SocialScribeWeb, :live_component
 
   import SocialScribeWeb.ModalComponents
-  alias SocialScribe.HubspotSuggestions
-  alias SocialScribe.SalesforceSuggestions
+  alias SocialScribe.CrmProviders
 
   @impl true
   def render(assigns) do
+    provider =
+      assigns
+      |> Map.get(:provider, CrmProviders.default_provider_id())
+      |> CrmProviders.normalize_provider()
+
+    provider_config = CrmProviders.get(provider)
+
     assigns =
       assigns
-      |> assign_new(:provider, fn -> "hubspot" end)
-      |> assign(:provider, normalize_provider(assigns.provider))
-      |> assign_new(:provider_config, fn -> provider_config(assigns.provider) end)
+      |> assign(:provider, provider)
+      |> assign(:provider_config, provider_config)
       |> assign(:patch, ~p"/dashboard/meetings/#{assigns.meeting}")
-      |> assign_new(:modal_id, fn -> default_modal_id(assigns.provider) end)
+      |> assign_new(:modal_id, fn -> CrmProviders.modal_wrapper_id(provider) end)
 
     ~H"""
     <div class="space-y-6">
@@ -125,10 +130,10 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   def update(assigns, socket) do
     provider =
       assigns
-      |> Map.get(:provider, socket.assigns[:provider] || "hubspot")
-      |> normalize_provider()
+      |> Map.get(:provider, socket.assigns[:provider] || CrmProviders.default_provider_id())
+      |> CrmProviders.normalize_provider()
 
-    provider_config = provider_config(provider)
+    provider_config = CrmProviders.get(provider)
     reauth_required = reauth_required_for(provider, assigns, socket)
 
     socket =
@@ -174,7 +179,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
 
       String.length(query) >= 2 ->
         socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
-        send(self(), {provider_config.search_event, query, socket.assigns.credential})
+        send(self(), {:crm_search, socket.assigns.provider, query, socket.assigns.credential})
         {:noreply, socket}
 
       true ->
@@ -206,7 +211,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
       true ->
         socket = assign(socket, dropdown_open: true, searching: true)
         query = "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
-        send(self(), {provider_config.search_event, query, socket.assigns.credential})
+        send(self(), {:crm_search, socket.assigns.provider, query, socket.assigns.credential})
         {:noreply, socket}
     end
   end
@@ -231,7 +236,11 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
             suggestions: []
           )
 
-        send(self(), {provider_config.generate_event, contact, socket.assigns.meeting, socket.assigns.credential})
+        send(
+          self(),
+          {:crm_generate_suggestions, socket.assigns.provider, contact, socket.assigns.meeting,
+           socket.assigns.credential}
+        )
         {:noreply, socket}
       else
         {:noreply, assign(socket, error: "Contact not found")}
@@ -278,7 +287,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
               suggestion
               | field: new_field,
                 label: provider_config.suggestions_module.field_label(new_field),
-                current_value: contact_field_value(socket.assigns.provider, socket.assigns.selected_contact, new_field),
+                current_value: contact_field_value(socket.assigns.selected_contact, new_field),
                 mapping_open: false
             }
           else
@@ -322,7 +331,11 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
           Map.put(acc, field, Map.get(values, field, ""))
         end)
 
-      send(self(), {provider_config.apply_event, updates, socket.assigns.selected_contact, socket.assigns.credential})
+      send(
+        self(),
+        {:crm_apply_updates, socket.assigns.provider, updates, socket.assigns.selected_contact,
+         socket.assigns.credential}
+      )
       {:noreply, socket}
     end
   end
@@ -344,7 +357,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
     end)
   end
 
-  defp contact_field_value("hubspot", contact, field) when is_map(contact) and is_binary(field) do
+  defp contact_field_value(contact, field) when is_map(contact) and is_binary(field) do
     Map.get(contact, field) ||
       (try do
          Map.get(contact, String.to_existing_atom(field))
@@ -353,65 +366,16 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
        end)
   end
 
-  defp contact_field_value(_, contact, field) when is_map(contact) and is_binary(field) do
-    Map.get(contact, field)
-  end
+  defp contact_field_value(_, _), do: nil
 
-  defp contact_field_value(_, _, _), do: nil
-
-  defp provider_config("hubspot") do
-    %{
-      name: "HubSpot",
-      submit_text: "Update HubSpot",
-      submit_class: "bg-hubspot-button hover:bg-hubspot-button-hover",
-      suggestions_module: HubspotSuggestions,
-      search_event: :hubspot_search,
-      generate_event: :generate_suggestions,
-      apply_event: :apply_hubspot_updates,
-      reauth: false,
-      reauth_path: nil
-    }
-  end
-
-  defp provider_config("salesforce") do
-    %{
-      name: "Salesforce",
-      submit_text: "Update Salesforce",
-      submit_class: "bg-sky-600 hover:bg-sky-700",
-      suggestions_module: SalesforceSuggestions,
-      search_event: :salesforce_search,
-      generate_event: :generate_salesforce_suggestions,
-      apply_event: :apply_salesforce_updates,
-      reauth: true,
-      reauth_path: ~p"/auth/salesforce?prompt=consent"
-    }
-  end
-
-  defp provider_config(_), do: provider_config("hubspot")
-
-  defp default_modal_id("salesforce"), do: "salesforce-modal-wrapper"
-  defp default_modal_id(_), do: "hubspot-modal-wrapper"
-
-  defp normalize_provider(provider) when is_atom(provider),
-    do: provider |> Atom.to_string() |> normalize_provider()
-
-  defp normalize_provider(provider) when is_binary(provider), do: String.downcase(provider)
-  defp normalize_provider(_), do: "hubspot"
-
-  defp reauth_required_for("salesforce", assigns, socket) do
+  defp reauth_required_for(provider, assigns, socket) do
     case Map.fetch(assigns, :reauth_required) do
       {:ok, value} ->
         value
 
       :error ->
         credential = Map.get(assigns, :credential, socket.assigns[:credential])
-
-        case credential do
-          %{reauth_required_at: %DateTime{}} -> true
-          _ -> false
-        end
+        CrmProviders.reauth_required?(provider, credential)
     end
   end
-
-  defp reauth_required_for(_, _assigns, _socket), do: false
 end

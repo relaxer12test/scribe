@@ -44,6 +44,7 @@
   <%= if not Enum.empty?(@meeting_items) do %>
     <div class="space-y-6">
       <div :for={bot <- @meeting_items} class="bg-white  shadow-xl rounded-lg overflow-hidden">
+        <% attendees = Meetings.human_participants(bot.meeting && bot.meeting.meeting_participants) %>
         <div class="p-5 md:p-6">
           <div class="flex flex-col sm:flex-row justify-between">
             <div class="mb-4 sm:mb-0">
@@ -66,17 +67,17 @@
               <p class="text-xs text-slate-400 ">
                 <%= if bot.meeting do %>
                   Duration: {format_duration(bot.meeting.duration_seconds)} | Attendees: {Enum.count(
-                    bot.meeting.meeting_participants
+                    attendees
                   )}
                 <% else %>
                   Duration: N/A | Attendees: TBD
                 <% end %>
               </p>
-              <%= if bot.meeting && Enum.any?(bot.meeting.meeting_participants) do %>
+              <%= if bot.meeting && Enum.any?(attendees) do %>
                 <p class="text-xs text-slate-500 mt-1 ">
                   <% 
                     names =
-                      bot.meeting.meeting_participants
+                      attendees
                       |> Enum.map(fn p ->
                         name = p.name || ""
                         if name == "", do: "Unknown", else: name

@@ -517,17 +517,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
 
   @impl true
   def handle_event("add_context", _params, socket) do
-    new_value =
-      case String.trim_trailing(socket.assigns.input_value) do
-        "" -> "@"
-        val -> val <> " @"
-      end
-
-    {:noreply,
-     socket
-     |> assign(input_value: new_value)
-     |> push_event("update_bubble_input", %{value: new_value})
-     |> push_event("focus_bubble_input", %{})}
+    {:noreply, push_event(socket, "insert_bubble_text", %{value: "@"})}
   end
 
   @impl true

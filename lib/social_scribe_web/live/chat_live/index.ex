@@ -205,6 +205,7 @@ defmodule SocialScribeWeb.ChatLive.Index do
     {:noreply,
      socket
      |> assign(input_value: new_value)
+     |> push_event("update_chat_input", %{value: new_value})
      |> push_event("focus_chat_input", %{})}
   end
 
