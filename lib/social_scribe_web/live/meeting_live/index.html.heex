@@ -59,7 +59,7 @@
               </div>
               <p class="text-sm text-slate-500 ">
                 <%= if bot.meeting do %>
-                  Recorded: {bot.meeting.recorded_at}
+                  Recorded: {format_meeting_time(bot.meeting.recorded_at, @timezone)}
                 <% else %>
                   Scheduled: {bot.calendar_event && bot.calendar_event.start_time || "N/A"}
                 <% end %>

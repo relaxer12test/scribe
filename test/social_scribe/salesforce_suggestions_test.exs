@@ -47,6 +47,35 @@ defmodule SocialScribe.SalesforceSuggestionsTest do
       assert suggestion.has_change == true
     end
 
+    test "dedupes duplicate fields and keeps the latest timestamp" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+      meeting = meeting_fixture()
+
+      contact = %{
+        "Id" => "003",
+        "LastName" => "Doe"
+      }
+
+      ai_suggestions = [
+        %{field: "LastName", value: "Smith", context: "Mentioned earlier", timestamp: "00:10"},
+        %{field: "LastName", value: "Johnson", context: "Mentioned later", timestamp: "00:20"}
+      ]
+
+      SocialScribe.SalesforceApiMock
+      |> expect(:get_contact, fn ^credential, "003" -> {:ok, contact} end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_salesforce_suggestions, fn ^meeting -> {:ok, ai_suggestions} end)
+
+      assert {:ok, %{contact: ^contact, suggestions: [suggestion]}} =
+               SalesforceSuggestions.generate_suggestions(credential, "003", meeting)
+
+      assert suggestion.field == "LastName"
+      assert suggestion.new_value == "Johnson"
+      assert suggestion.timestamp == "00:20"
+    end
+
     test "returns error when contact lookup fails" do
       user = user_fixture()
       credential = salesforce_credential_fixture(%{user_id: user.id})

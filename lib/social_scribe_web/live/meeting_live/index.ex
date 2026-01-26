@@ -6,13 +6,15 @@ defmodule SocialScribeWeb.MeetingLive.Index do
   alias SocialScribe.Meetings
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     meeting_items = Meetings.list_user_meeting_items(socket.assigns.current_user)
+    timezone = normalize_timezone(session["browser_timezone"])
 
     socket =
       socket
       |> assign(:page_title, "Meetings")
       |> assign(:meeting_items, meeting_items)
+      |> assign(:timezone, timezone)
 
     {:ok, socket}
   end
@@ -29,6 +31,36 @@ defmodule SocialScribeWeb.MeetingLive.Index do
     minutes = div(seconds, 60)
     "#{minutes} min"
   end
+
+  defp format_meeting_time(nil, _timezone), do: "N/A"
+
+  defp format_meeting_time(%DateTime{} = datetime, timezone) do
+    datetime
+    |> shift_to_timezone(timezone)
+    |> Timex.format!("%m/%d/%Y, %H:%M:%S", :strftime)
+  end
+
+  defp format_meeting_time(datetime, _timezone), do: to_string(datetime)
+
+  defp normalize_timezone(timezone) when is_binary(timezone) do
+    case Timex.Timezone.get(timezone, DateTime.utc_now()) do
+      %Timex.TimezoneInfo{} -> timezone
+      %Timex.AmbiguousTimezoneInfo{} -> timezone
+      _ -> "Etc/UTC"
+    end
+  end
+
+  defp normalize_timezone(_timezone), do: "Etc/UTC"
+
+  defp shift_to_timezone(%DateTime{} = datetime, timezone) when is_binary(timezone) do
+    case Timex.Timezone.convert(datetime, timezone) do
+      %Timex.AmbiguousDateTime{before: before} -> before
+      %DateTime{} = converted -> converted
+      {:error, _} -> datetime
+    end
+  end
+
+  defp shift_to_timezone(datetime, _timezone), do: datetime
 
   defp format_status(nil), do: "Unknown"
 

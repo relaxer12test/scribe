@@ -69,6 +69,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
           patch={@patch}
           meeting_path={@patch}
           provider_config={@provider_config}
+          selected_contact={@selected_contact}
         />
       <% end %>
     </div>
@@ -81,6 +82,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   attr :patch, :string, required: true
   attr :meeting_path, :string, required: true
   attr :provider_config, :map, required: true
+  attr :selected_contact, :map, required: true
 
   defp suggestions_section(assigns) do
     selected_count = Enum.count(assigns.suggestions, & &1.apply)
@@ -117,6 +119,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
               <.suggestion_card
                 :for={suggestion <- @suggestions}
                 suggestion={suggestion}
+                contact={@selected_contact}
                 field_options={@field_options}
                 myself={@myself}
                 meeting_path={@meeting_path}
@@ -170,9 +173,18 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   end
 
   defp ensure_apply_defaults(socket, %{suggestions: suggestions}) when is_list(suggestions) do
+    contact = socket.assigns[:selected_contact]
+    contact_country = contact_country(contact)
+
     updated =
       Enum.map(suggestions, fn suggestion ->
-        Map.put_new(suggestion, :apply, false)
+        suggestion = Map.put_new(suggestion, :apply, false)
+
+        if suggestion.field == "MailingState" and is_binary(contact_country) and contact_country != "" do
+          Map.put_new(suggestion, :country_value, contact_country)
+        else
+          suggestion
+        end
       end)
 
     assign(socket, suggestions: updated)
@@ -298,6 +310,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
         mapping_changed = old_field != new_field
         apply? = new_field in checked_fields
         new_value = Map.get(mapped_values, new_field, suggestion.new_value)
+        country_value = Map.get(values, "MailingCountry")
 
         suggestion =
           if mapping_changed do
@@ -306,8 +319,15 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
               | field: new_field,
                 label: provider_config.suggestions_module.field_label(new_field),
                 current_value: contact_field_value(socket.assigns.selected_contact, new_field),
-                mapping_open: false
+              mapping_open: false
             }
+          else
+            suggestion
+          end
+
+        suggestion =
+          if new_field == "MailingState" and is_binary(country_value) do
+            Map.put(suggestion, :country_value, country_value)
           else
             suggestion
           end
@@ -348,6 +368,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
         |> Enum.reduce(%{}, fn field, acc ->
           Map.put(acc, field, Map.get(values, field, ""))
         end)
+        |> maybe_add_salesforce_country(values, socket.assigns.provider)
 
       send(
         self(),
@@ -375,6 +396,22 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
     end)
   end
 
+  defp maybe_add_salesforce_country(updates, values, provider) when is_map(updates) and is_map(values) do
+    if CrmProviders.normalize_provider(provider) == "salesforce" and Map.has_key?(updates, "MailingState") do
+      country_value = Map.get(values, "MailingCountry", "")
+
+      if is_binary(country_value) and String.trim(country_value) != "" do
+        Map.put_new(updates, "MailingCountry", country_value)
+      else
+        updates
+      end
+    else
+      updates
+    end
+  end
+
+  defp maybe_add_salesforce_country(updates, _values, _provider), do: updates
+
   defp contact_field_value(contact, field) when is_map(contact) and is_binary(field) do
     Map.get(contact, field) ||
       (try do
@@ -385,6 +422,15 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   end
 
   defp contact_field_value(_, _), do: nil
+
+  defp contact_country(contact) when is_map(contact) do
+    Map.get(contact, "MailingCountry") ||
+      Map.get(contact, :mailing_country) ||
+      Map.get(contact, "country") ||
+      Map.get(contact, :country)
+  end
+
+  defp contact_country(_), do: nil
 
   defp reauth_required_for(provider, assigns, socket) do
     case Map.fetch(assigns, :reauth_required) do

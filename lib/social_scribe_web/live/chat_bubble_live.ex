@@ -85,7 +85,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
           ⌘K
         </span>
       </button>
-      
+
     <!-- Overlay backdrop - click to close -->
       <div
         :if={@bubble_open}
@@ -94,7 +94,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         phx-click="close_bubble"
       >
       </div>
-      
+
     <!-- Right Sidebar Panel -->
       <div
         :if={@bubble_open}
@@ -114,7 +114,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             <.icon name="hero-chevron-double-right" class="h-4 w-4" />
           </button>
         </div>
-        
+
     <!-- Tabs -->
         <div class="px-8 pb-3 flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-1">
@@ -169,7 +169,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             </div>
           </div>
         <% end %>
-        
+
     <!-- Content Area - scrollable -->
         <div class="flex-1 overflow-y-auto min-h-0">
           <%= if @active_tab == :chat do %>
@@ -207,7 +207,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                         <div class="text-[13px] text-zinc-950 leading-snug">
                           {render_content_with_inline_mentions(msg.content, msg.mentions)}
                         </div>
-                        
+
     <!-- Sources -->
                         <%= if has_sources?(msg) do %>
                           <div class="flex items-center gap-1.5 pt-1">
@@ -249,7 +249,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <% end %>
                 <% end %>
               <% end %>
-              
+
     <!-- Pending message (user's message while sending) -->
               <div :if={@sending && @pending_message} class="chat-message-user flex justify-end">
                 <div class="max-w-[85%] rounded-2xl bg-[#f1f4f5] px-4 py-2.5 text-zinc-950">
@@ -258,14 +258,14 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   </p>
                 </div>
               </div>
-              
+
     <!-- Streaming response -->
               <div :if={@streaming} class="chat-message-assistant space-y-2">
                 <div class="text-[13px] text-zinc-950 leading-snug">
                   {@streaming_content}<span class="streaming-cursor">▌</span>
                 </div>
               </div>
-              
+
     <!-- Thinking indicator (non-streaming) -->
               <div :if={@sending && !@streaming} class="text-[12px] text-[#a0a8b1]">
                 Thinking...
@@ -311,7 +311,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             </div>
           <% end %>
         </div>
-        
+
     <!-- Input Area -->
         <div class="px-8 pb-8 pt-4 bg-white flex-shrink-0">
           <div class="relative">
@@ -326,7 +326,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 <span>Searching contacts...</span>
               </div>
             </div>
-            
+
     <!-- Mention autocomplete dropdown -->
             <div
               :if={@mention_query && length(@mention_search_results) > 0}
@@ -363,7 +363,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 </div>
               <% end %>
             </div>
-            
+
     <!-- Input container -->
             <div class="relative rounded-2xl border border-[#3270e8] bg-white">
               <!-- Top toolbar with Add context -->
@@ -380,7 +380,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <span>Add context</span>
                 </button>
               </div>
-              
+
     <!-- Contenteditable input with inline mentions -->
               <div
                 id="bubble-chat-input"
@@ -394,7 +394,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   @sending && "bg-slate-50 text-[#a0a8b1] pointer-events-none"
                 ]}
               ></div>
-              
+
     <!-- Bottom toolbar -->
               <div class="flex items-center justify-between px-4 pb-4">
                 <div class="flex items-center gap-1.5">

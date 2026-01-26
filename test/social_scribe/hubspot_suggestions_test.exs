@@ -96,6 +96,43 @@ defmodule SocialScribe.HubspotSuggestionsTest do
       assert hd(result).new_value == "555-1234"
     end
 
+    test "dedupes duplicate fields and keeps the latest timestamp" do
+      suggestions = [
+        %{
+          field: "lastname",
+          label: "Last Name",
+          current_value: nil,
+          new_value: "Smith",
+          context: "Mentioned earlier",
+          timestamp: "00:10",
+          apply: false,
+          has_change: true
+        },
+        %{
+          field: "lastname",
+          label: "Last Name",
+          current_value: nil,
+          new_value: "Jones",
+          context: "Mentioned later",
+          timestamp: "00:20",
+          apply: false,
+          has_change: true
+        }
+      ]
+
+      contact = %{
+        id: "123",
+        lastname: "Doe"
+      }
+
+      result = HubspotSuggestions.merge_with_contact(suggestions, contact)
+
+      assert length(result) == 1
+      assert hd(result).field == "lastname"
+      assert hd(result).new_value == "Jones"
+      assert hd(result).timestamp == "00:20"
+    end
+
     test "returns empty list when all suggestions match current values" do
       suggestions = [
         %{

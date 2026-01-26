@@ -4,6 +4,30 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <script>
+      (function() {
+        try {
+          var timezone = "Etc/UTC"
+          var resolved = Intl.DateTimeFormat().resolvedOptions().timeZone
+          if (resolved) {
+            timezone = resolved
+          }
+          var cookieName = "browser_timezone"
+          var match = document.cookie.match(new RegExp("(^|;\\s*)" + cookieName + "=([^;]+)"))
+          var cookieValue = match ? decodeURIComponent(match[2]) : null
+
+          if (cookieValue !== timezone) {
+            document.cookie =
+              cookieName + "=" + encodeURIComponent(timezone) + "; path=/; max-age=31536000; samesite=lax"
+            var reloadKey = "browser_timezone_reload"
+            if (sessionStorage.getItem(reloadKey) !== timezone) {
+              sessionStorage.setItem(reloadKey, timezone)
+              window.location.replace(window.location.href)
+            }
+          }
+        } catch (_) {}
+      })()
+    </script>
     <.live_title default="SocialScribe" suffix=" · Phoenix Framework">
       {assigns[:page_title]}
     </.live_title>

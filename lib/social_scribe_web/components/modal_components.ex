@@ -8,6 +8,83 @@ defmodule SocialScribeWeb.ModalComponents do
 
   import SocialScribeWeb.CoreComponents, only: [icon: 1]
 
+  @state_fields ["MailingState", "state"]
+  @state_option_pairs [
+    {"Alabama", "AL"},
+    {"Alaska", "AK"},
+    {"Arizona", "AZ"},
+    {"Arkansas", "AR"},
+    {"California", "CA"},
+    {"Colorado", "CO"},
+    {"Connecticut", "CT"},
+    {"Delaware", "DE"},
+    {"District of Columbia", "DC"},
+    {"Florida", "FL"},
+    {"Georgia", "GA"},
+    {"Hawaii", "HI"},
+    {"Idaho", "ID"},
+    {"Illinois", "IL"},
+    {"Indiana", "IN"},
+    {"Iowa", "IA"},
+    {"Kansas", "KS"},
+    {"Kentucky", "KY"},
+    {"Louisiana", "LA"},
+    {"Maine", "ME"},
+    {"Maryland", "MD"},
+    {"Massachusetts", "MA"},
+    {"Michigan", "MI"},
+    {"Minnesota", "MN"},
+    {"Mississippi", "MS"},
+    {"Missouri", "MO"},
+    {"Montana", "MT"},
+    {"Nebraska", "NE"},
+    {"Nevada", "NV"},
+    {"New Hampshire", "NH"},
+    {"New Jersey", "NJ"},
+    {"New Mexico", "NM"},
+    {"New York", "NY"},
+    {"North Carolina", "NC"},
+    {"North Dakota", "ND"},
+    {"Ohio", "OH"},
+    {"Oklahoma", "OK"},
+    {"Oregon", "OR"},
+    {"Pennsylvania", "PA"},
+    {"Rhode Island", "RI"},
+    {"South Carolina", "SC"},
+    {"South Dakota", "SD"},
+    {"Tennessee", "TN"},
+    {"Texas", "TX"},
+    {"Utah", "UT"},
+    {"Vermont", "VT"},
+    {"Virginia", "VA"},
+    {"Washington", "WA"},
+    {"West Virginia", "WV"},
+    {"Wisconsin", "WI"},
+    {"Wyoming", "WY"},
+    {"Alberta", "AB"},
+    {"British Columbia", "BC"},
+    {"Manitoba", "MB"},
+    {"New Brunswick", "NB"},
+    {"Newfoundland and Labrador", "NL"},
+    {"Northwest Territories", "NT"},
+    {"Nova Scotia", "NS"},
+    {"Nunavut", "NU"},
+    {"Ontario", "ON"},
+    {"Prince Edward Island", "PE"},
+    {"Quebec", "QC"},
+    {"Saskatchewan", "SK"},
+    {"Yukon", "YT"}
+  ]
+  @state_name_options Enum.map(@state_option_pairs, fn {name, _code} -> {name, name} end)
+  @state_code_options @state_option_pairs
+  @state_name_map Map.new(@state_option_pairs, fn {name, _code} -> {String.downcase(name), name} end)
+  @state_name_to_code Map.new(@state_option_pairs, fn {name, code} -> {String.downcase(name), code} end)
+  @state_code_to_name Map.new(@state_option_pairs, fn {name, code} -> {String.downcase(code), name} end)
+  @country_options [
+    {"United States", "United States"},
+    {"Canada", "Canada"}
+  ]
+
   @doc """
   Renders a searchable contact select box.
 
@@ -36,7 +113,7 @@ defmodule SocialScribeWeb.ModalComponents do
 
   def contact_select(assigns) do
     ~H"""
-    <div class="space-y-1">
+    <div id={@id} phx-hook="ContactSelect" class="space-y-1">
       <label for={"#{@id}-input"} class="block text-sm font-medium text-slate-700">Select Contact</label>
       <div class="relative">
         <%= if @selected_contact do %>
@@ -93,6 +170,7 @@ defmodule SocialScribeWeb.ModalComponents do
           :if={@open && (@selected_contact || Enum.any?(@contacts) || @loading || @query != "")}
           id={"#{@id}-listbox"}
           role="listbox"
+          data-contact-select-listbox
           phx-click-away="close_contact_dropdown"
           phx-target={@target}
           class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
@@ -104,6 +182,7 @@ defmodule SocialScribeWeb.ModalComponents do
             phx-target={@target}
             role="option"
             aria-selected={"false"}
+            data-contact-select-item
             class="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 cursor-pointer"
           >
             Clear selection
@@ -122,6 +201,7 @@ defmodule SocialScribeWeb.ModalComponents do
             phx-target={@target}
             role="option"
             aria-selected={"false"}
+            data-contact-select-item
             class="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
           >
             <.avatar firstname={contact.firstname} lastname={contact.lastname} size={:sm} />
@@ -330,6 +410,7 @@ defmodule SocialScribeWeb.ModalComponents do
       <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} />
   """
   attr :suggestion, :map, required: true
+  attr :contact, :map, default: nil
   attr :myself, :any, default: nil
   attr :field_options, :list, default: []
   attr :meeting_path, :string, default: nil
@@ -410,15 +491,76 @@ defmodule SocialScribeWeb.ModalComponents do
               <.icon name="hero-arrow-long-right" class="h-7 w-7" />
             </div>
 
-            <input
-              type="text"
-              name={"values[#{@suggestion.field}]"}
-              id={"suggestion-value-#{@suggestion.field}"}
-              value={@suggestion.new_value}
-              class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            <%= if state_field?(@suggestion.field) do %>
+              <select
+                name={"values[#{@suggestion.field}]"}
+                id={"suggestion-value-#{@suggestion.field}"}
+                class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="" selected={state_selected_value(@suggestion.field, @suggestion.new_value) == ""}>
+                  Select a state/province
+                </option>
+                <option
+                  :for={{label, value} <- state_select_options(@suggestion.field, @suggestion.new_value)}
+                  value={value}
+                  selected={value == state_selected_value(@suggestion.field, @suggestion.new_value)}
+                >
+                  {label}
+                </option>
+              </select>
+            <% else %>
+              <input
+                type="text"
+                name={"values[#{@suggestion.field}]"}
+                id={"suggestion-value-#{@suggestion.field}"}
+                value={@suggestion.new_value}
+                class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            <% end %>
           </div>
         </div>
+
+        <%= if @suggestion.field == "MailingState" do %>
+          <% country_value = suggestion_country_value(@suggestion, @contact) %>
+          <div class="mt-3">
+            <div class="grid grid-cols-[1fr_32px_1fr] items-center gap-6">
+              <input
+                type="text"
+                readonly
+                value={contact_country(@contact) || ""}
+                placeholder="No existing value"
+                class={[
+                  "block w-full shadow-sm text-sm bg-white border border-gray-300 rounded-[7px] py-1.5 px-2",
+                  if(contact_country(@contact) && contact_country(@contact) != "",
+                    do: "line-through text-gray-500",
+                    else: "text-gray-400"
+                  )
+                ]}
+              />
+
+              <div class="w-8 flex justify-center text-hubspot-arrow">
+                <.icon name="hero-arrow-long-right" class="h-7 w-7" />
+              </div>
+
+              <select
+                name="values[MailingCountry]"
+                id="suggestion-country-MailingState"
+                class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="" selected={country_selected_value(country_value) == ""}>
+                  Select a country/territory
+                </option>
+                <option
+                  :for={{label, value} <- country_select_options(country_value)}
+                  value={value}
+                  selected={value == country_selected_value(country_value)}
+                >
+                  {label}
+                </option>
+              </select>
+            </div>
+          </div>
+        <% end %>
 
         <div class="mt-3 grid grid-cols-[1fr_32px_1fr] items-start gap-6">
           <button
@@ -456,6 +598,94 @@ defmodule SocialScribeWeb.ModalComponents do
       </div>
     </div>
     """
+  end
+
+  defp state_field?(field) when is_atom(field), do: state_field?(Atom.to_string(field))
+  defp state_field?(field) when is_binary(field), do: field in @state_fields
+  defp state_field?(_field), do: false
+
+  defp state_select_options(field, selected_value) do
+    {options, selected_value} = state_options_for_field(field, selected_value)
+
+    if selected_value != "" and Enum.all?(options, fn {_label, value} -> value != selected_value end) do
+      [{selected_value, selected_value} | options]
+    else
+      options
+    end
+  end
+
+  defp state_options_for_field(field, selected_value) when is_binary(field) do
+    case field do
+      "MailingState" -> {@state_code_options, state_selected_value(:code, selected_value)}
+      "state" -> {@state_name_options, state_selected_value(:name, selected_value)}
+      _ -> {@state_name_options, state_selected_value(:name, selected_value)}
+    end
+  end
+
+  defp state_options_for_field(_field, selected_value),
+    do: {@state_name_options, state_selected_value(:name, selected_value)}
+
+  defp state_selected_value(mode, value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case mode do
+      :code -> state_code_from_value(trimmed) || trimmed
+      :name -> state_name_from_value(trimmed) || trimmed
+      _ -> trimmed
+    end
+  end
+
+  defp state_selected_value(_mode, _value), do: ""
+
+  defp state_code_from_value(""), do: nil
+
+  defp state_code_from_value(value) when is_binary(value) do
+    normalized = String.downcase(value)
+
+    cond do
+      Map.has_key?(@state_code_to_name, normalized) -> String.upcase(value)
+      true -> Map.get(@state_name_to_code, normalized)
+    end
+  end
+
+  defp state_code_from_value(_value), do: nil
+
+  defp state_name_from_value(""), do: nil
+
+  defp state_name_from_value(value) when is_binary(value) do
+    normalized = String.downcase(value)
+    Map.get(@state_code_to_name, normalized) || Map.get(@state_name_map, normalized)
+  end
+
+  defp state_name_from_value(_value), do: nil
+
+  defp country_select_options(selected_value) do
+    selected_value = country_selected_value(selected_value)
+
+    if selected_value != "" and Enum.all?(@country_options, fn {_label, value} -> value != selected_value end) do
+      [{selected_value, selected_value} | @country_options]
+    else
+      @country_options
+    end
+  end
+
+  defp country_selected_value(value) when is_binary(value), do: String.trim(value)
+  defp country_selected_value(_value), do: ""
+
+  defp contact_country(contact) when is_map(contact) do
+    Map.get(contact, "MailingCountry") ||
+      Map.get(contact, :mailing_country) ||
+      Map.get(contact, "country") ||
+      Map.get(contact, :country)
+  end
+
+  defp contact_country(_), do: nil
+
+  defp suggestion_country_value(suggestion, contact) do
+    Map.get(suggestion, :country_value) ||
+      Map.get(suggestion, "country_value") ||
+      contact_country(contact) ||
+      ""
   end
 
   @doc """

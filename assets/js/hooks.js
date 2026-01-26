@@ -771,6 +771,116 @@ Hooks.ChatInput = {
     }
 }
 
+Hooks.ContactSelect = {
+    mounted() {
+        const activeClass = "bg-indigo-50"
+        const hoverClass = "hover:bg-slate-50"
+
+        this.selectedIndex = 0
+
+        const getListbox = () => this.el.querySelector("[data-contact-select-listbox]")
+
+        const getItems = () => {
+            const listbox = getListbox()
+            if (!listbox) return []
+            return listbox.querySelectorAll("[data-contact-select-item]")
+        }
+
+        const isDropdownOpen = () => !!getListbox()
+
+        const updateSelection = (newIndex) => {
+            const items = getItems()
+            if (items.length === 0) return
+
+            if (newIndex < 0) newIndex = items.length - 1
+            if (newIndex >= items.length) newIndex = 0
+            this.selectedIndex = newIndex
+
+            items.forEach((item, idx) => {
+                if (idx === this.selectedIndex) {
+                    item.classList.add(activeClass)
+                    item.classList.remove(hoverClass)
+                    item.setAttribute("aria-selected", "true")
+                    item.scrollIntoView({ block: "nearest" })
+                } else {
+                    item.classList.remove(activeClass)
+                    item.classList.add(hoverClass)
+                    item.setAttribute("aria-selected", "false")
+                }
+            })
+        }
+
+        const resetSelection = () => {
+            this.selectedIndex = 0
+            updateSelection(0)
+        }
+
+        const selectCurrent = () => {
+            const items = getItems()
+            if (items.length === 0) return
+            const item = items[this.selectedIndex]
+            if (!item) return
+            item.click()
+        }
+
+        this.handleKeydown = (e) => {
+            if (!isDropdownOpen()) return
+
+            if (e.key === "ArrowUp") {
+                e.preventDefault()
+                updateSelection(this.selectedIndex - 1)
+                return
+            }
+
+            if (e.key === "ArrowDown") {
+                e.preventDefault()
+                updateSelection(this.selectedIndex + 1)
+                return
+            }
+
+            if (e.key === "Enter") {
+                e.preventDefault()
+                selectCurrent()
+            }
+        }
+
+        this.handleKeyup = (e) => {
+            if (!isDropdownOpen()) return
+
+            if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter") {
+                e.stopPropagation()
+            }
+        }
+
+        this.el.addEventListener("keydown", this.handleKeydown)
+        this.el.addEventListener("keyup", this.handleKeyup)
+
+        this.observer = new MutationObserver(() => {
+            if (isDropdownOpen()) {
+                resetSelection()
+            }
+        })
+
+        this.observer.observe(this.el, { childList: true, subtree: true })
+
+        if (isDropdownOpen()) {
+            resetSelection()
+        }
+    },
+
+    destroyed() {
+        if (this.handleKeydown) {
+            this.el.removeEventListener("keydown", this.handleKeydown)
+        }
+        if (this.handleKeyup) {
+            this.el.removeEventListener("keyup", this.handleKeyup)
+        }
+        if (this.observer) {
+            this.observer.disconnect()
+        }
+    }
+}
+
 Hooks.TranscriptHighlight = {
     mounted() {
         this.highlightFromUrl = () => {

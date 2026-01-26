@@ -135,6 +135,14 @@ defmodule SocialScribe.SalesforceApi do
   """
   def update_contact(%UserCredential{} = credential, contact_id, updates)
       when is_map(updates) and is_binary(contact_id) do
+    state_value = Map.get(updates, "MailingState") || Map.get(updates, "MailingStateCode")
+    country_value = Map.get(updates, "MailingCountry") || Map.get(updates, "MailingCountryCode")
+
+    Logger.info(
+      "salesforce_update_contact contact_id=#{contact_id} fields=#{inspect(Map.keys(updates))} " <>
+        "state=#{inspect(state_value)} country=#{inspect(country_value)}"
+    )
+
     with_token_refresh(credential, fn cred ->
       with_instance_url(cred, fn instance_url ->
         url = "/services/data/#{@api_version}/sobjects/Contact/#{contact_id}"
@@ -150,9 +158,15 @@ defmodule SocialScribe.SalesforceApi do
             {:error, :not_found}
 
           {:ok, %Tesla.Env{status: status, body: body}} ->
+            Logger.warning(
+              "salesforce_update_contact_failed contact_id=#{contact_id} status=#{status} body=#{inspect(body)}"
+            )
             {:error, {:api_error, status, body}}
 
           {:error, reason} ->
+            Logger.warning(
+              "salesforce_update_contact_http_error contact_id=#{contact_id} reason=#{inspect(reason)}"
+            )
             {:error, {:http_error, reason}}
         end
       end)

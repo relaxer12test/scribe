@@ -5,6 +5,7 @@ defmodule SocialScribe.HubspotSuggestions do
   """
 
   alias SocialScribe.AIContentGeneratorApi
+  alias SocialScribe.CrmSuggestions
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.Accounts.UserCredential
 
@@ -71,6 +72,7 @@ defmodule SocialScribe.HubspotSuggestions do
           }
         end)
         |> Enum.filter(fn s -> s.has_change end)
+        |> CrmSuggestions.dedupe_by_field()
 
       {:ok, %{contact: contact, suggestions: suggestions}}
     end
@@ -99,6 +101,7 @@ defmodule SocialScribe.HubspotSuggestions do
               has_change: true
             }
           end)
+          |> CrmSuggestions.dedupe_by_field()
 
         {:ok, suggestions}
 
@@ -117,6 +120,7 @@ defmodule SocialScribe.HubspotSuggestions do
       %{suggestion | current_value: current_value, has_change: current_value != suggestion.new_value, apply: false}
     end)
     |> Enum.filter(fn s -> s.has_change end)
+    |> CrmSuggestions.dedupe_by_field()
   end
 
   defp get_contact_field(contact, field) when is_map(contact) do
