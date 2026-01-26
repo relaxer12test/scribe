@@ -67,6 +67,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
           loading={@loading}
           myself={@myself}
           patch={@patch}
+          meeting_path={@patch}
           provider_config={@provider_config}
         />
       <% end %>
@@ -78,6 +79,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   attr :loading, :boolean, required: true
   attr :myself, :any, required: true
   attr :patch, :string, required: true
+  attr :meeting_path, :string, required: true
   attr :provider_config, :map, required: true
 
   defp suggestions_section(assigns) do
@@ -107,6 +109,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
                 suggestion={suggestion}
                 field_options={@field_options}
                 myself={@myself}
+                meeting_path={@meeting_path}
               />
             </div>
 

@@ -236,7 +236,7 @@
 .chat-input-editable:empty::before,
 .chat-input-editable.is-empty::before {
   content: attr(data-placeholder);
-  color: #94a3b8;
+  color: #a0a8b1;
   pointer-events: none;
 }
 
@@ -259,6 +259,18 @@
 
 .inline-mention-pill--message {
   background-color: #ffffff;
+  border: 1px solid #e4e7ea;
+  font-size: 0.8125rem;
+}
+
+.chat-message-assistant .inline-mention-pill--message {
+  background-color: #f1f4f5;
+  border-color: #f1f4f5;
+}
+
+.chat-message-user .inline-mention-pill--message {
+  background-color: #ffffff;
+  border-color: #e4e7ea;
 }
 
 .inline-mention-pill-avatar {
@@ -273,6 +285,18 @@
   color: #475569;
   font-size: 0.5rem;
   font-weight: 600;
+}
+
+.chat-message-user .inline-mention-pill--message .inline-mention-pill-avatar {
+  background-color: #ffffff;
+  border: 1px solid #e4e7ea;
+  color: #6b7179;
+}
+
+.chat-message-assistant .inline-mention-pill--message .inline-mention-pill-avatar {
+  background-color: #f1f4f5;
+  color: #6b7179;
+  border: 1px solid #f1f4f5;
 }
 
 .inline-mention-pill-badge {
@@ -291,9 +315,21 @@
   border: 1px solid white;
 }
 
+.chat-message-user .inline-mention-pill--message .inline-mention-pill-badge {
+  border-color: #ffffff;
+}
+
+.chat-message-assistant .inline-mention-pill--message .inline-mention-pill-badge {
+  border-color: #f1f4f5;
+}
+
 .inline-mention-pill-name {
   color: #334155;
   font-weight: 500;
+}
+
+.inline-mention-pill--message .inline-mention-pill-name {
+  color: #09090b;
 }
 
 /* ===========================================
@@ -327,4 +363,23 @@
     transform: scale(0.95);
     opacity: 0;
   }
+}
+
+/* ===========================================
+   Transcript Highlight Styles
+   =========================================== */
+
+.transcript-segment {
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.transcript-segment-highlight {
+  background-color: #fff7ed;
+  border-left: 3px solid #f59e0b;
+}
+
+.transcript-segment-highlight .transcript-timestamp {
+  color: #b45309;
 }

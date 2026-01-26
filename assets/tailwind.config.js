@@ -11,6 +11,14 @@ module.exports = {
     "../lib/social_scribe_web.ex",
     "../lib/social_scribe_web/**/*.*ex"
   ],
+  safelist: [
+    "bg-hubspot-button",
+    "hover:bg-hubspot-button-hover",
+    "bg-sky-600",
+    "hover:bg-sky-700",
+    "bg-orange-500",
+    "hover:bg-orange-600"
+  ],
   theme: {
     extend: {
       fontFamily: {

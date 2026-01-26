@@ -771,4 +771,73 @@ Hooks.ChatInput = {
     }
 }
 
+Hooks.TranscriptHighlight = {
+    mounted() {
+        this.highlightFromUrl = () => {
+            const timestamp = this.readTimestampFromUrl()
+            const segments = this.el.querySelectorAll("[data-timestamp]")
+
+            segments.forEach((segment) => {
+                segment.classList.remove("transcript-segment-highlight")
+            })
+
+            if (!timestamp) return
+
+            const target = Array.from(segments).find(
+                (segment) => segment.dataset.timestamp === timestamp
+            )
+
+            if (!target) return
+
+            target.classList.add("transcript-segment-highlight")
+            target.scrollIntoView({ behavior: "smooth", block: "center" })
+        }
+
+        this.readTimestampFromUrl = () => {
+            const params = new URLSearchParams(window.location.search)
+            let timestamp = params.get("t") || params.get("timestamp")
+
+            if (!timestamp && window.location.hash) {
+                const hash = window.location.hash.replace(/^#/, "")
+                if (hash.startsWith("t=")) {
+                    timestamp = hash.slice(2)
+                } else if (hash.startsWith("timestamp=")) {
+                    timestamp = hash.slice(10)
+                }
+            }
+
+            if (!timestamp) return null
+
+            let normalized = decodeURIComponent(String(timestamp)).trim()
+            if (normalized.startsWith("[") && normalized.endsWith("]")) {
+                normalized = normalized.slice(1, -1)
+            }
+
+            const parts = normalized.split(":")
+            if (parts.length === 2) {
+                const minutes = parts[0].padStart(2, "0")
+                const seconds = parts[1].padStart(2, "0")
+                normalized = `${minutes}:${seconds}`
+            }
+
+            return normalized
+        }
+
+        this.handleHashChange = () => {
+            this.highlightFromUrl()
+        }
+
+        window.addEventListener("hashchange", this.handleHashChange)
+        this.highlightFromUrl()
+    },
+
+    updated() {
+        this.highlightFromUrl()
+    },
+
+    destroyed() {
+        window.removeEventListener("hashchange", this.handleHashChange)
+    }
+}
+
 export default Hooks

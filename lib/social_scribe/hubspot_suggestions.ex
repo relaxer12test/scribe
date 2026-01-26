@@ -64,6 +64,7 @@ defmodule SocialScribe.HubspotSuggestions do
             new_value: suggestion.value,
             person: Map.get(suggestion, :person) || Map.get(suggestion, "person"),
             context: suggestion.context,
+            timestamp: Map.get(suggestion, :timestamp) || Map.get(suggestion, "timestamp"),
             apply: true,
             mapping_open: false,
             has_change: current_value != suggestion.value

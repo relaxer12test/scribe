@@ -332,6 +332,7 @@ defmodule SocialScribeWeb.ModalComponents do
   attr :suggestion, :map, required: true
   attr :myself, :any, default: nil
   attr :field_options, :list, default: []
+  attr :meeting_path, :string, default: nil
   attr :class, :string, default: nil
 
   def suggestion_card(assigns) do
@@ -432,12 +433,25 @@ defmodule SocialScribeWeb.ModalComponents do
             <% end %>
           </button>
           <span></span>
-          <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">Found in transcript<span
-              class="text-hubspot-link hover:underline cursor-help"
-              title={@suggestion[:context]}
-            >
-              ({@suggestion[:timestamp]})
-            </span></span>
+          <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">
+            Found in transcript
+            <%= if @meeting_path do %>
+              <a
+                href={"#{@meeting_path}?t=#{URI.encode_www_form(@suggestion[:timestamp])}#meeting-transcript"}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-hubspot-link hover:underline"
+                title={@suggestion[:context]}
+                aria-label={"Open transcript at #{@suggestion[:timestamp]} in a new tab"}
+              >
+                ({@suggestion[:timestamp]})
+              </a>
+            <% else %>
+              <span class="text-hubspot-link cursor-help" title={@suggestion[:context]}>
+                ({@suggestion[:timestamp]})
+              </span>
+            <% end %>
+          </span>
         </div>
       </div>
     </div>

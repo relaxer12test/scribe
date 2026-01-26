@@ -313,16 +313,34 @@ defmodule SocialScribeWeb.MeetingLive.Show do
       <h2 class="text-2xl font-semibold mb-4 text-slate-700">
         Meeting Transcript
       </h2>
-      <div class="prose prose-sm sm:prose max-w-none h-96 overflow-y-auto pr-2">
+      <div
+        id="meeting-transcript"
+        phx-hook="TranscriptHighlight"
+        class="prose prose-sm sm:prose max-w-none h-96 overflow-y-auto pr-2"
+      >
         <%= if @has_transcript do %>
-          <div :for={segment <- @meeting_transcript.content["data"]} class="mb-3">
-            <p>
-              <span class="font-semibold text-indigo-600">
-                {segment["speaker"] || "Unknown Speaker"}:
-              </span>
-              {Enum.map_join(segment["words"] || [], " ", & &1["text"])}
-            </p>
-          </div>
+          <%= for {segment, index} <- Enum.with_index(@meeting_transcript.content["data"]) do %>
+            <% timestamp = segment_timestamp(segment) %>
+            <% speaker = segment["speaker"] || "Unknown Speaker" %>
+            <% text = Enum.map_join(segment["words"] || [], " ", & &1["text"]) %>
+            <div
+              id={"transcript-segment-#{index}"}
+              data-timestamp={timestamp}
+              class="mb-3 transcript-segment"
+            >
+              <p class="flex gap-3">
+                <span class="transcript-timestamp text-xs font-mono text-slate-500 w-14 shrink-0">
+                  {timestamp}
+                </span>
+                <span>
+                  <span class="font-semibold text-indigo-600">
+                    {speaker}:
+                  </span>
+                  {text}
+                </span>
+              </p>
+            </div>
+          <% end %>
         <% else %>
           <p class="text-slate-500">
             Transcript not available for this meeting.
@@ -332,4 +350,25 @@ defmodule SocialScribeWeb.MeetingLive.Show do
     </div>
     """
   end
+
+  defp segment_timestamp(segment) when is_map(segment) do
+    words = Map.get(segment, "words", [])
+    format_timestamp(List.first(words))
+  end
+
+  defp segment_timestamp(_), do: "00:00"
+
+  defp format_timestamp(nil), do: "00:00"
+
+  defp format_timestamp(word) do
+    seconds = extract_seconds(Map.get(word, "start_timestamp"))
+    total_seconds = trunc(seconds)
+    minutes = div(total_seconds, 60)
+    secs = rem(total_seconds, 60)
+    "#{String.pad_leading(Integer.to_string(minutes), 2, "0")}:#{String.pad_leading(Integer.to_string(secs), 2, "0")}"
+  end
+
+  defp extract_seconds(%{"relative" => relative}) when is_number(relative), do: relative
+  defp extract_seconds(seconds) when is_number(seconds), do: seconds
+  defp extract_seconds(_), do: 0
 end
