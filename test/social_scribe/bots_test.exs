@@ -101,7 +101,14 @@ defmodule SocialScribe.BotsTest do
     test "create_and_dispatch_bot/2 creates a bot via API and saves to database" do
       user = user_fixture()
 
-      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      start_time = DateTime.add(DateTime.utc_now(), 1, :hour)
+      end_time = DateTime.add(start_time, 30, :minute)
+      calendar_event =
+        calendar_event_fixture(%{
+          user_id: user.id,
+          start_time: start_time,
+          end_time: end_time
+        })
 
       # Mock successful API response
       expect(RecallApiMock, :create_bot, fn _meeting_url, start_time ->
@@ -145,7 +152,14 @@ defmodule SocialScribe.BotsTest do
       _user_bot_preference =
         user_bot_preference_fixture(%{user_id: user.id, join_minute_offset: 10})
 
-      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      start_time = DateTime.add(DateTime.utc_now(), 1, :hour)
+      end_time = DateTime.add(start_time, 30, :minute)
+      calendar_event =
+        calendar_event_fixture(%{
+          user_id: user.id,
+          start_time: start_time,
+          end_time: end_time
+        })
 
       expect(RecallApiMock, :create_bot, fn _meeting_url, start_time ->
         assert start_time == DateTime.add(calendar_event.start_time, -10, :minute)
@@ -237,7 +251,13 @@ defmodule SocialScribe.BotsTest do
     end
 
     test "update_bot_schedule/2 updates bot schedule via API and saves to database" do
-      calendar_event = calendar_event_fixture()
+      start_time = DateTime.add(DateTime.utc_now(), 1, :hour)
+      end_time = DateTime.add(start_time, 30, :minute)
+      calendar_event =
+        calendar_event_fixture(%{
+          start_time: start_time,
+          end_time: end_time
+        })
       bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id})
 
       expect(RecallApiMock, :update_bot, fn _bot_id, _meeting_url, start_time ->
@@ -272,7 +292,13 @@ defmodule SocialScribe.BotsTest do
     end
 
     test "update_bot_schedule/2 uses user_bot_preference join_minute_offset" do
-      calendar_event = calendar_event_fixture()
+      start_time = DateTime.add(DateTime.utc_now(), 1, :hour)
+      end_time = DateTime.add(start_time, 30, :minute)
+      calendar_event =
+        calendar_event_fixture(%{
+          start_time: start_time,
+          end_time: end_time
+        })
       bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id})
 
       _user_bot_preference =
