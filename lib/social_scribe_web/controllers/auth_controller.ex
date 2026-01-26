@@ -4,6 +4,10 @@ defmodule SocialScribeWeb.AuthController do
   alias SocialScribe.FacebookApi
   alias SocialScribe.Accounts
   alias SocialScribeWeb.UserAuth
+
+  @salesforce_return_to_key :salesforce_return_to
+
+  plug :store_salesforce_return_to when action in [:request]
   plug Ueberauth
 
   require Logger
@@ -139,6 +143,9 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "salesforce"
       })
       when not is_nil(user) do
+    {conn, return_to} = pop_salesforce_return_to(conn)
+    destination = return_to || ~p"/dashboard/settings"
+
     Logger.info("Salesforce OAuth")
     Logger.info(inspect(auth))
 
@@ -146,14 +153,14 @@ defmodule SocialScribeWeb.AuthController do
       {:ok, _credential} ->
         conn
         |> put_flash(:info, "Salesforce account connected successfully!")
-        |> redirect(to: ~p"/dashboard/settings")
+        |> redirect(to: destination)
 
       {:error, reason} ->
         Logger.error("Failed to save Salesforce credential: #{inspect(reason)}")
 
         conn
         |> put_flash(:error, "Could not connect Salesforce account.")
-        |> redirect(to: ~p"/dashboard/settings")
+        |> redirect(to: destination)
     end
   end
 
@@ -184,4 +191,68 @@ defmodule SocialScribeWeb.AuthController do
     |> put_flash(:error, "There was an error signing you in. Please try again.")
     |> redirect(to: ~p"/")
   end
+
+  defp store_salesforce_return_to(%{params: %{"provider" => "salesforce"}} = conn, _opts) do
+    case fetch_salesforce_return_to(conn) do
+      nil -> conn
+      return_to -> put_session(conn, @salesforce_return_to_key, return_to)
+    end
+  end
+
+  defp store_salesforce_return_to(conn, _opts), do: conn
+
+  defp pop_salesforce_return_to(conn) do
+    return_to = get_session(conn, @salesforce_return_to_key)
+    {delete_session(conn, @salesforce_return_to_key), return_to}
+  end
+
+  defp fetch_salesforce_return_to(conn) do
+    case conn.params["return_to"] do
+      return_to when is_binary(return_to) ->
+        if valid_return_to?(return_to), do: return_to, else: nil
+
+      _ ->
+        conn
+        |> get_req_header("referer")
+        |> List.first()
+        |> return_to_from_referer(conn)
+    end
+  end
+
+  defp return_to_from_referer(nil, _conn), do: nil
+
+  defp return_to_from_referer(referer, conn) do
+    referer
+    |> URI.parse()
+    |> return_to_from_uri(conn)
+  end
+
+  defp return_to_from_uri(%URI{} = uri, conn) do
+    if same_origin?(uri, conn) && valid_return_path?(uri.path) do
+      build_return_to(uri)
+    end
+  end
+
+  defp build_return_to(%URI{path: path, query: query}) do
+    if query && query != "", do: "#{path}?#{query}", else: path
+  end
+
+  defp same_origin?(%URI{host: host, port: port}, conn) do
+    host == conn.host && (is_nil(port) || port == conn.port)
+  end
+
+  defp valid_return_to?(return_to) do
+    case URI.parse(return_to) do
+      %URI{scheme: nil, host: nil, path: path} -> valid_return_path?(path)
+      _ -> false
+    end
+  end
+
+  defp valid_return_path?(path) when is_binary(path) do
+    String.starts_with?(path, "/") and
+      not String.starts_with?(path, "//") and
+      not String.starts_with?(path, "/auth")
+  end
+
+  defp valid_return_path?(_path), do: false
 end

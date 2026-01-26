@@ -28,6 +28,22 @@ defmodule SocialScribeWeb.AuthControllerTest do
     assert credential.email == auth.info.email
   end
 
+  test "salesforce callback redirects to stored return_to", %{conn: conn, user: user} do
+    auth = salesforce_auth("valid-token")
+    return_to = "/dashboard/meetings/123"
+
+    conn =
+      conn
+      |> init_test_session(%{salesforce_return_to: return_to})
+      |> fetch_flash()
+      |> assign(:ueberauth_auth, auth)
+      |> assign(:current_user, user)
+
+    conn = AuthController.callback(conn, %{"provider" => "salesforce"})
+
+    assert redirected_to(conn) == return_to
+  end
+
   test "salesforce callback shows error when credential is invalid", %{conn: conn, user: user} do
     auth = salesforce_auth(nil)
 
