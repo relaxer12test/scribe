@@ -82,6 +82,50 @@ defmodule SocialScribe.ChatAssistantTest do
                )
     end
 
+    test "keeps mentioned contacts in context for follow-up questions" do
+      user = user_fixture()
+      thread = chat_thread_fixture(%{user_id: user.id})
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+
+      mention = %{contact_id: "hs1", contact_name: "Pat Doe", crm_provider: "hubspot"}
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn ^credential, "hs1" ->
+        {:ok, %{id: "hs1", firstname: "Pat", lastname: "Doe", email: "pat@example.com"}}
+      end)
+      |> expect(:get_contact, fn ^credential, "hs1" ->
+        {:ok, %{id: "hs1", firstname: "Pat", lastname: "Doe", email: "pat@example.com"}}
+      end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:generate_chat_response, fn _query, contacts, _meetings, _crm_updates, _history ->
+        assert Enum.any?(contacts, &(&1.id == "hs1"))
+        {:ok, %{answer: "First answer.", sources: []}}
+      end)
+      |> expect(:generate_chat_response, fn _query, contacts, _meetings, _crm_updates, _history ->
+        assert Enum.any?(contacts, &(&1.id == "hs1"))
+        {:ok, %{answer: "Second answer.", sources: []}}
+      end)
+
+      assert {:ok, _result} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "Tell me about Pat",
+                 [mention],
+                 %{hubspot: credential, salesforce: nil}
+               )
+
+      assert {:ok, _result} =
+               ChatAssistant.process_message(
+                 thread.id,
+                 user.id,
+                 "What did they say?",
+                 [],
+                 %{hubspot: credential, salesforce: nil}
+               )
+    end
+
     test "stores mention references only when they appear in the answer" do
       user = user_fixture()
       thread = chat_thread_fixture(%{user_id: user.id})

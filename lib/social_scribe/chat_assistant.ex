@@ -12,6 +12,8 @@ defmodule SocialScribe.ChatAssistant do
 
   require Logger
 
+  @context_message_limit 10
+
   @doc """
   Process a user message and generate AI response.
 
@@ -27,7 +29,7 @@ defmodule SocialScribe.ChatAssistant do
 
       _thread ->
         with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
-             {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
+             {:ok, context} <- build_context(thread_id, user_id, formatted_mentions, credentials),
              history <- get_conversation_history(thread_id, user_id),
              {:ok, ai_response} <-
                AIContentGeneratorApi.generate_chat_response(
@@ -42,7 +44,7 @@ defmodule SocialScribe.ChatAssistant do
                  thread_id,
                  ai_response.answer,
                  %{"meetings" => ai_response.sources},
-                 mentions_referenced_in_content(formatted_mentions, ai_response.answer)
+                 mentions_referenced_in_content(context.mentions, ai_response.answer)
                ) do
           {:ok, %{user_message: user_message, assistant_message: assistant_message}}
         end
@@ -64,7 +66,7 @@ defmodule SocialScribe.ChatAssistant do
 
       _thread ->
         with {:ok, user_message} <- Chat.create_user_message(thread_id, content, formatted_mentions),
-             {:ok, context} <- build_context(user_id, formatted_mentions, credentials),
+             {:ok, context} <- build_context(thread_id, user_id, formatted_mentions, credentials),
              history <- get_conversation_history(thread_id, user_id),
              {:ok, ai_response} <-
                AIContentGeneratorApi.generate_chat_response_stream(
@@ -80,7 +82,7 @@ defmodule SocialScribe.ChatAssistant do
                  thread_id,
                  ai_response.answer,
                  %{"meetings" => ai_response.sources},
-                 mentions_referenced_in_content(formatted_mentions, ai_response.answer)
+                 mentions_referenced_in_content(context.mentions, ai_response.answer)
                ) do
           {:ok, %{user_message: user_message, assistant_message: assistant_message}}
         end
@@ -268,13 +270,49 @@ defmodule SocialScribe.ChatAssistant do
     Enum.uniq(variants)
   end
 
-  defp build_context(user_id, mentions, credentials) do
-    with {:ok, contacts} <- fetch_mentioned_contacts(mentions, credentials) do
+  defp build_context(thread_id, user_id, mentions, credentials) do
+    context_mentions = build_context_mentions(thread_id, user_id, mentions)
+
+    with {:ok, contacts} <- fetch_mentioned_contacts(context_mentions, credentials) do
       meetings = fetch_relevant_meetings(user_id, contacts)
       updates = fetch_relevant_updates(meetings, contacts)
-      {:ok, %{contacts: contacts, meetings: meetings, updates: updates}}
+      {:ok, %{contacts: contacts, meetings: meetings, updates: updates, mentions: context_mentions}}
     end
   end
+
+  defp build_context_mentions(thread_id, user_id, mentions) do
+    recent_mentions = Chat.list_recent_thread_mentions(thread_id, user_id, @context_message_limit)
+
+    mentions
+    |> Enum.concat(recent_mentions)
+    |> Enum.map(&normalize_context_mention/1)
+    |> Enum.filter(&valid_context_mention?/1)
+    |> Enum.uniq_by(&{&1.crm_provider, &1.contact_id})
+  end
+
+  defp normalize_context_mention(mention) do
+    contact_id = Map.get(mention, :contact_id) || Map.get(mention, "contact_id")
+    contact_name = Map.get(mention, :contact_name) || Map.get(mention, "contact_name")
+    crm_provider = Map.get(mention, :crm_provider) || Map.get(mention, "crm_provider")
+
+    %{
+      contact_id: normalize_context_value(contact_id),
+      contact_name: normalize_context_value(contact_name),
+      crm_provider: normalize_context_value(crm_provider)
+    }
+  end
+
+  defp valid_context_mention?(mention) do
+    present?(mention.contact_id) and present?(mention.crm_provider)
+  end
+
+  defp normalize_context_value(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_context_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_context_value(value), do: value
 
   defp fetch_mentioned_contacts(mentions, credentials) do
     mentions

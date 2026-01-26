@@ -172,6 +172,35 @@ defmodule SocialScribe.Chat do
     |> Enum.group_by(fn msg -> Date.to_string(NaiveDateTime.to_date(msg.inserted_at)) end)
   end
 
+  @doc """
+  List mentions from the most recent user messages in a thread.
+  """
+  def list_recent_thread_mentions(thread_id, user_id, message_limit \\ 10)
+
+  def list_recent_thread_mentions(thread_id, user_id, message_limit)
+      when is_integer(message_limit) and message_limit > 0 do
+    message_ids =
+      ChatMessage
+      |> join(:inner, [m], t in ChatThread, on: m.chat_thread_id == t.id)
+      |> where([m, t], m.chat_thread_id == ^thread_id and t.user_id == ^user_id and m.role == "user")
+      |> order_by([m], desc: m.inserted_at)
+      |> limit(^message_limit)
+      |> select([m], m.id)
+      |> Repo.all()
+
+    case message_ids do
+      [] ->
+        []
+
+      ids ->
+        ChatMessageMention
+        |> where([mm], mm.chat_message_id in ^ids)
+        |> Repo.all()
+    end
+  end
+
+  def list_recent_thread_mentions(_thread_id, _user_id, _message_limit), do: []
+
   # --- Mention Operations ---
 
   @doc """

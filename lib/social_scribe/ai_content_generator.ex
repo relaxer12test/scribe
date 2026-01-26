@@ -297,15 +297,71 @@ defmodule SocialScribe.AIContentGenerator do
   defp format_contacts_for_prompt(contacts) do
     contacts
     |> Enum.map(fn contact ->
-      """
-      - #{contact[:firstname] || contact["firstname"]} #{contact[:lastname] || contact["lastname"]} (#{contact[:crm_provider] || contact["crm_provider"]})
-        Email: #{contact[:email] || contact["email"] || "N/A"}
-        Phone: #{contact[:phone] || contact["phone"] || "N/A"}
-        Company: #{contact[:company] || contact["company"] || "N/A"}
-        Title: #{contact[:jobtitle] || contact[:title] || contact["jobtitle"] || contact["title"] || "N/A"}
-      """
+      firstname = contact[:firstname] || contact["firstname"]
+      lastname = contact[:lastname] || contact["lastname"]
+      display_name = contact[:display_name] || contact["display_name"]
+
+      name =
+        if present?(firstname) or present?(lastname) do
+          String.trim("#{firstname || ""} #{lastname || ""}")
+        else
+          display_name || "Unknown"
+        end
+
+      provider = contact[:crm_provider] || contact["crm_provider"] || "unknown"
+      email = contact[:email] || contact["email"]
+      phone = contact[:phone] || contact["phone"]
+      company = contact[:company] || contact["company"]
+      title = contact[:jobtitle] || contact[:title] || contact["jobtitle"] || contact["title"]
+      mobile = contact[:mobilephone] || contact["mobilephone"] || contact[:mobile_phone] || contact["mobile_phone"]
+      website = contact[:website] || contact["website"]
+      linkedin = contact[:linkedin_url] || contact["linkedin_url"]
+      twitter = contact[:twitter_handle] || contact["twitter_handle"]
+
+      street = contact[:address] || contact["address"] || contact[:mailing_street] || contact["MailingStreet"]
+      city = contact[:city] || contact["city"] || contact[:mailing_city] || contact["MailingCity"]
+      state = contact[:state] || contact["state"] || contact[:mailing_state] || contact["MailingState"]
+      zip = contact[:zip] || contact["zip"] || contact[:mailing_postal_code] || contact["MailingPostalCode"]
+      country = contact[:country] || contact["country"] || contact[:mailing_country] || contact["MailingCountry"]
+
+      address =
+        [street, city, state, zip, country]
+        |> Enum.filter(&present?/1)
+        |> case do
+          [] -> nil
+          parts -> Enum.join(parts, ", ")
+        end
+
+      base_lines = [
+        "- #{name} (#{provider})",
+        "  Email: #{email || "N/A"}",
+        "  Phone: #{phone || "N/A"}",
+        "  Company: #{company || "N/A"}",
+        "  Title: #{title || "N/A"}"
+      ]
+
+      extra_lines =
+        [
+          format_optional_contact_line("Mobile", mobile),
+          format_optional_contact_line("Address", address),
+          format_optional_contact_line("Website", website),
+          format_optional_contact_line("LinkedIn", linkedin),
+          format_optional_contact_line("Twitter", twitter)
+        ]
+        |> Enum.reject(&is_nil/1)
+
+      (base_lines ++ extra_lines)
+      |> Enum.join("\n")
     end)
     |> Enum.join("\n")
+  end
+
+  defp format_optional_contact_line(label, value) do
+    if present?(value) do
+      "  #{label}: #{value}"
+    else
+      nil
+    end
   end
 
   defp format_updates_for_prompt([]), do: "No CRM updates have been applied from meetings."
