@@ -80,8 +80,8 @@ defmodule SocialScribeWeb.ChatBubbleLive do
         class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all duration-200 flex items-center justify-center group"
         title="Ask Anything (⌘K)"
       >
-        <.icon name="hero-chat-bubble-left-right" class="h-6 w-6" />
-        <span class="absolute -top-8 right-0 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+        <.icon name="hero-chat-bubble-left-right" class="h-7 w-7" />
+        <span class="absolute -top-8 right-0 px-2 py-1 bg-slate-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
           ⌘K
         </span>
       </button>
@@ -103,15 +103,15 @@ defmodule SocialScribeWeb.ChatBubbleLive do
       >
         <!-- Header -->
         <div class="px-8 pt-6 pb-3 flex items-center justify-between flex-shrink-0">
-          <h2 class="text-[15px] font-semibold text-zinc-950">
+          <h2 class="text-lg font-semibold text-zinc-950">
             Ask Anything
           </h2>
           <button
             phx-click="close_bubble"
-            class="p-1 text-slate-500 hover:text-slate-600 transition-colors mr-2"
+            class="p-1 text-black hover:text-slate-600 transition-colors mr-2"
             title="Expand"
           >
-            <.icon name="hero-chevron-double-right" class="h-4 w-4" />
+            <.icon name="hero-chevron-double-right" class="h-5 w-5" />
           </button>
         </div>
 
@@ -122,7 +122,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               phx-click="switch_tab"
               phx-value-tab="chat"
               class={[
-                "px-3 py-1.5 text-[12px] rounded-lg transition-colors",
+                "px-3 py-1.5 text-sm rounded-lg transition-colors",
                 @active_tab == :chat && "font-medium text-zinc-950 bg-[#f1f4f5]",
                 @active_tab != :chat && "font-medium text-[#6b7179] hover:text-slate-600"
               ]}
@@ -133,7 +133,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               phx-click="switch_tab"
               phx-value-tab="history"
               class={[
-                "px-3 py-1.5 text-[12px] rounded-lg transition-colors",
+                "px-3 py-1.5 text-sm rounded-lg transition-colors",
                 @active_tab == :history && "font-medium text-zinc-950 bg-[#f1f4f5]",
                 @active_tab != :history && "font-medium text-[#6b7179] hover:text-slate-600"
               ]}
@@ -146,7 +146,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             class="p-1 text-[#6b7179] hover:text-slate-600 transition-colors"
             title="New conversation"
           >
-            <.icon name="hero-plus" class="h-4 w-4" />
+            <.icon name="hero-plus" class="h-5 w-5" />
           </button>
         </div>
 
@@ -154,15 +154,15 @@ defmodule SocialScribeWeb.ChatBubbleLive do
           <div class="mx-8 mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p class="text-sm font-semibold">Reconnect Salesforce to keep CRM context in chat</p>
-                <p class="text-xs text-amber-800">
+                <p class="text-base font-semibold">Reconnect Salesforce to keep CRM context in chat</p>
+                <p class="text-sm text-amber-800">
                   We couldn't refresh your Salesforce connection. Reconnect to continue using CRM data.
                 </p>
               </div>
               <.link
                 href={~p"/auth/salesforce?prompt=consent"}
                 method="get"
-                class="inline-flex items-center justify-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-amber-700"
+                class="inline-flex items-center justify-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-amber-700"
               >
                 Reconnect Salesforce
               </.link>
@@ -176,7 +176,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
             <div class="px-8 pb-6 pt-4 space-y-4" id="chat-messages">
               <!-- Welcome message -->
               <%= if is_nil(@current_thread) || map_size(@messages) == 0 do %>
-                <div class="max-w-[90%] text-[13px] leading-snug text-zinc-950">
+                <div class="max-w-[90%] text-base leading-snug text-zinc-950">
                   I can answer questions about Jump meetings and data – just ask!
                 </div>
               <% else %>
@@ -185,7 +185,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <!-- Date/time divider with side lines -->
                   <div class="flex items-center gap-3 py-2">
                     <div class="h-px flex-1 bg-[#e4e7ea]"></div>
-                    <span class="text-[11px] text-[#a0a8b1] whitespace-nowrap">
+                    <span class="text-sm text-[#a0a8b1] whitespace-nowrap">
                       {format_date_with_time(date, List.first(msgs))}
                     </span>
                     <div class="h-px flex-1 bg-[#e4e7ea]"></div>
@@ -196,7 +196,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                       <!-- User message - gray bubble, right aligned -->
                       <div class="chat-message-user flex justify-end">
                         <div class="max-w-[85%] rounded-2xl bg-[#f1f4f5] px-4 py-2.5 text-zinc-950">
-                          <p class="text-[13px] leading-snug">
+                          <p class="text-base leading-snug">
                             {render_content_with_inline_mentions(msg.content, msg.mentions)}
                           </p>
                         </div>
@@ -204,25 +204,25 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                     <% else %>
                       <!-- AI message - no bubble, left aligned -->
                       <div class="chat-message-assistant max-w-[90%] space-y-2">
-                        <div class="text-[13px] text-zinc-950 leading-snug">
+                        <div class="text-base text-zinc-950 leading-snug">
                           {render_content_with_inline_mentions(msg.content, msg.mentions)}
                         </div>
 
     <!-- Sources -->
                         <%= if has_sources?(msg) do %>
                           <div class="flex items-center gap-1.5 pt-1">
-                            <span class="text-[11px] font-medium text-[#a0a8b1]">Sources</span>
+                            <span class="text-sm font-medium text-[#a0a8b1]">Sources</span>
                             <div class="flex items-center gap-1">
                               <%= for mention <- msg.mentions || [] do %>
                                 <span
-                                  class="relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#e4e7ea] text-[8px] font-semibold text-[#6b7179]"
+                                  class="relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#e4e7ea] text-xs font-semibold text-[#6b7179]"
                                   title={mention.contact_name || mention[:contact_name] || ""}
                                 >
                                   {get_mention_initials(
                                     mention.contact_name || mention[:contact_name] || ""
                                   )}
                                   <span class={[
-                                    "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white border border-white",
+                                    "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full flex items-center justify-center text-xs font-bold text-white border border-white",
                                     mention.crm_provider == "hubspot" && "bg-orange-500",
                                     mention.crm_provider == "salesforce" && "bg-blue-500"
                                   ]}>
@@ -237,7 +237,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                                   title={source["title"]}
                                 >
                                   <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#09090b]">
-                                    <.icon name="hero-video-camera" class="h-2 w-2 text-white" />
+                                    <.icon name="hero-video-camera" class="h-3 w-3 text-white" />
                                   </span>
                                 </.link>
                               <% end %>
@@ -253,7 +253,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     <!-- Pending message (user's message while sending) -->
               <div :if={@sending && @pending_message} class="chat-message-user flex justify-end">
                 <div class="max-w-[85%] rounded-2xl bg-[#f1f4f5] px-4 py-2.5 text-zinc-950">
-                  <p class="text-[13px] leading-snug">
+                  <p class="text-sm leading-snug">
                     {render_content_with_inline_mentions(@pending_message, @pending_mentions)}
                   </p>
                 </div>
@@ -261,13 +261,13 @@ defmodule SocialScribeWeb.ChatBubbleLive do
 
     <!-- Streaming response -->
               <div :if={@streaming} class="chat-message-assistant space-y-2">
-                <div class="text-[13px] text-zinc-950 leading-snug">
+                <div class="text-sm text-zinc-950 leading-snug">
                   {@streaming_content}<span class="streaming-cursor">▌</span>
                 </div>
               </div>
 
     <!-- Thinking indicator (non-streaming) -->
-              <div :if={@sending && !@streaming} class="text-[12px] text-[#a0a8b1]">
+              <div :if={@sending && !@streaming} class="text-sm text-[#a0a8b1]">
                 Thinking...
               </div>
             </div>
@@ -278,10 +278,10 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 <div class="p-8 text-center text-slate-500">
                   <.icon
                     name="hero-chat-bubble-left-right"
-                    class="h-12 w-12 mx-auto mb-3 text-slate-300"
+                    class="h-14 w-14 mx-auto mb-3 text-slate-300"
                   />
-                  <p class="text-sm font-medium">No conversations yet</p>
-                  <p class="text-xs mt-1">Start a new chat to begin</p>
+                  <p class="text-base font-medium">No conversations yet</p>
+                  <p class="text-sm mt-1">Start a new chat to begin</p>
                 </div>
               <% else %>
                 <%= for thread <- @threads do %>
@@ -295,14 +295,14 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                     ]}
                   >
                     <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium text-slate-900 truncate">
+                      <span class="text-base font-medium text-slate-900 truncate">
                         {thread.title || "New conversation"}
                       </span>
-                      <span class="text-xs text-slate-500 ml-2 flex-shrink-0">
+                      <span class="text-sm text-slate-500 ml-2 flex-shrink-0">
                         {format_thread_time(thread)}
                       </span>
                     </div>
-                    <p :if={first_message(thread)} class="text-xs text-slate-500 truncate mt-1">
+                    <p :if={first_message(thread)} class="text-sm text-slate-500 truncate mt-1">
                       {first_message(thread).content}
                     </p>
                   </button>
@@ -321,8 +321,8 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               id="bubble-mention-loading"
               class="absolute bottom-full left-0 mb-2 w-full bg-white rounded-xl shadow-lg border border-slate-200 py-4 z-10"
             >
-              <div class="flex items-center justify-center gap-2 text-slate-500 text-sm">
-                <.icon name="hero-arrow-path" class="h-4 w-4 animate-spin" />
+              <div class="flex items-center justify-center gap-2 text-slate-500 text-base">
+                <.icon name="hero-arrow-path" class="h-5 w-5 animate-spin" />
                 <span>Searching contacts...</span>
               </div>
             </div>
@@ -345,19 +345,19 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 >
                   <!-- Avatar with provider badge -->
                   <div class="relative flex-shrink-0">
-                    <div class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-medium">
+                    <div class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-sm font-medium">
                       {get_initials(contact)}
                     </div>
                     <!-- Provider badge -->
                     <div class={[
-                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-white",
+                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-xs font-bold text-white border border-white",
                       get_crm_provider(contact) == "hubspot" && "bg-orange-500",
                       get_crm_provider(contact) == "salesforce" && "bg-blue-500"
                     ]}>
                       {provider_letter(get_crm_provider(contact))}
                     </div>
                   </div>
-                  <span class="text-sm text-slate-700 truncate">
+                  <span class="text-base text-slate-700 truncate">
                     {contact.display_name || contact[:display_name]}
                   </span>
                 </div>
@@ -371,10 +371,10 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 <button
                   type="button"
                   phx-click="add_context"
-                  class="inline-flex items-center gap-1.5 rounded-lg border border-[#e4e7ea] bg-white px-3 py-1.5 text-[12px] text-[#6b7179] hover:bg-[#f6f7f8] transition-colors"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-[#e4e7ea] bg-white px-3 py-1.5 text-sm text-[#6b7179] hover:bg-[#f6f7f8] transition-colors"
                   title="Add context by mentioning a contact"
                 >
-                  <span class="flex h-4 w-4 items-center justify-center rounded-full border border-[#e4e7ea] bg-white text-[10px] font-semibold text-[#6b7179]">
+                  <span class="flex h-4 w-4 items-center justify-center rounded-full border border-[#e4e7ea] bg-white text-xs font-semibold text-[#6b7179]">
                     @
                   </span>
                   <span>Add context</span>
@@ -390,7 +390,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 data-placeholder="Ask anything about your meetings"
                 data-mentions={Jason.encode!(@mention_chips)}
                 class={[
-                  "chat-input-editable w-full min-h-[2.75rem] max-h-32 overflow-y-auto px-4 py-3 text-[13px] leading-snug text-zinc-950 focus:outline-none",
+                  "chat-input-editable w-full min-h-[2.75rem] max-h-32 overflow-y-auto px-4 py-3 text-sm leading-snug text-zinc-950 focus:outline-none",
                   @sending && "bg-slate-50 text-[#a0a8b1] pointer-events-none"
                 ]}
               ></div>
@@ -398,15 +398,15 @@ defmodule SocialScribeWeb.ChatBubbleLive do
     <!-- Bottom toolbar -->
               <div class="flex items-center justify-between px-4 pb-4">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[11px] text-[#a0a8b1]">Sources</span>
+                  <span class="text-xs text-[#a0a8b1]">Sources</span>
                   <%= if @hubspot_credential || @salesforce_credential do %>
                     <div class="flex items-center gap-1">
                       <%= if @hubspot_credential do %>
                         <div class="relative group">
                           <div class="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
-                            <span class="text-white text-[8px] font-bold">H</span>
+                            <span class="text-white text-xs font-bold">H</span>
                           </div>
-                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
+                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
                             HubSpot
                           </span>
                         </div>
@@ -414,9 +414,9 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                       <%= if @salesforce_credential do %>
                         <div class="relative group">
                           <div class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
-                            <span class="text-white text-[8px] font-bold">S</span>
+                            <span class="text-white text-xs font-bold">S</span>
                           </div>
-                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
+                          <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded bg-slate-900 px-1.5 py-0.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap">
                             Salesforce
                           </span>
                         </div>
@@ -425,7 +425,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                   <% else %>
                     <.link
                       href={~p"/dashboard/settings"}
-                      class="text-[11px] text-indigo-600 hover:underline"
+                      class="text-xs text-indigo-600 hover:underline"
                     >
                       Connect
                     </.link>
@@ -442,7 +442,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                     @sending && "bg-[#f1f4f5] text-[#c7ced2] cursor-not-allowed"
                   ]}
                 >
-                  <.icon name="hero-arrow-up" class="h-4 w-4" />
+                  <.icon name="hero-arrow-up" class="h-5 w-5" />
                 </button>
               </div>
             </div>
