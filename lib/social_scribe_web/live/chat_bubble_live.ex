@@ -108,7 +108,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
           </h2>
           <button
             phx-click="close_bubble"
-            class="p-1 text-slate-500 hover:text-slate-600 transition-colors"
+            class="p-1 text-slate-500 hover:text-slate-600 transition-colors mr-2"
             title="Expand"
           >
             <.icon name="hero-chevron-double-right" class="h-4 w-4" />
@@ -122,7 +122,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               phx-click="switch_tab"
               phx-value-tab="chat"
               class={[
-                "px-3 py-1.5 text-[12px] rounded-full transition-colors",
+                "px-3 py-1.5 text-[12px] rounded-lg transition-colors",
                 @active_tab == :chat && "font-medium text-zinc-950 bg-[#f1f4f5]",
                 @active_tab != :chat && "font-medium text-[#6b7179] hover:text-slate-600"
               ]}
@@ -133,7 +133,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
               phx-click="switch_tab"
               phx-value-tab="history"
               class={[
-                "px-3 py-1.5 text-[12px] rounded-full transition-colors",
+                "px-3 py-1.5 text-[12px] rounded-lg transition-colors",
                 @active_tab == :history && "font-medium text-zinc-950 bg-[#f1f4f5]",
                 @active_tab != :history && "font-medium text-[#6b7179] hover:text-slate-600"
               ]}
@@ -371,7 +371,7 @@ defmodule SocialScribeWeb.ChatBubbleLive do
                 <button
                   type="button"
                   phx-click="add_context"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-[#e4e7ea] bg-white px-3 py-1.5 text-[12px] text-[#6b7179] hover:bg-[#f6f7f8] transition-colors"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-[#e4e7ea] bg-white px-3 py-1.5 text-[12px] text-[#6b7179] hover:bg-[#f6f7f8] transition-colors"
                   title="Add context by mentioning a contact"
                 >
                   <span class="flex h-4 w-4 items-center justify-center rounded-full border border-[#e4e7ea] bg-white text-[10px] font-semibold text-[#6b7179]">
